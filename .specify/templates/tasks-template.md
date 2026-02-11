@@ -79,23 +79,41 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️
+### 3.1 BDD Scenarios (REQUIRED - Must be FIRST) 🔴
 
-> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
+> **CONSTITUTION PRINCIPLE III**: Test-First Development is NON-NEGOTIABLE
+> Write Gherkin scenarios → Obtain user approval → Ensure tests FAIL → Then implement
 
-- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T010 [P] [US1] Write Gherkin BDD scenarios in tests/AgentBus.Tests.BDD/Features/[Module]/[Feature].feature
+- [ ] T011 [US1] Obtain user approval of acceptance criteria
+- [ ] T012 [P] [US1] Write step definitions in tests/AgentBus.Tests.BDD/StepDefinitions/[Feature]Steps.cs
+- [ ] T013 [US1] Run BDD tests — verify they FAIL (RED phase)
 
-### Implementation for User Story 1
+### 3.2 Unit Tests (REQUIRED - Must FAIL before implementation) 🔴
 
-- [ ] T012 [P] [US1] Create [Entity1] model in src/models/[entity1].py
-- [ ] T013 [P] [US1] Create [Entity2] model in src/models/[entity2].py
-- [ ] T014 [US1] Implement [Service] in src/services/[service].py (depends on T012, T013)
-- [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T016 [US1] Add validation and error handling
-- [ ] T017 [US1] Add logging for user story 1 operations
+- [ ] T014 [P] [US1] Write handler unit tests in tests/AgentBus.Tests.Unit/Modules/[Module]/[Feature]HandlerTests.cs
+- [ ] T015 [P] [US1] Write validator unit tests if applicable
+- [ ] T016 [US1] Run unit tests — verify they FAIL (RED phase)
 
-**Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
+### 3.3 Implementation for User Story 1 (Now make tests GREEN) 🟢
+
+- [ ] T017 [P] [US1] Create feature directory: src/AgentBus.Modules.[Module]/Features/[Feature]/
+- [ ] T018 [P] [US1] Implement [Feature]Request.cs (record with required properties)
+- [ ] T019 [P] [US1] Implement [Feature]Response.cs (record)
+- [ ] T020 [P] [US1] Implement [Feature]Validator.cs (FluentValidation rules)
+- [ ] T021 [US1] Implement [Feature]Handler.cs with business logic (depends on T018-T020)
+- [ ] T022 [US1] Implement [Feature]Endpoint.cs (Minimal API mapping with auth)
+- [ ] T023 [US1] Register feature in [Module]Module.cs
+- [ ] T024 [US1] Run all tests — verify they PASS (GREEN phase)
+
+### 3.4 Refactor (Keep tests GREEN) 🔵
+
+- [ ] T025 [US1] Refactor for clarity, remove duplication, improve naming
+- [ ] T026 [US1] Verify tests still pass after refactoring
+- [ ] T027 [P] [US1] Add OpenTelemetry tracing attributes
+- [ ] T028 [P] [US1] Add structured logging with correlation IDs
+
+**Checkpoint**: User Story 1 complete (RED → GREEN → REFACTOR cycle finished), fully functional and testable independently
 
 ---
 

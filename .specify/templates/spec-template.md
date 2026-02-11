@@ -80,6 +80,12 @@
 <!--
   ACTION REQUIRED: The content in this section represents placeholders.
   Fill them out with the right functional requirements.
+  
+  CONSTITUTION COMPLIANCE: All requirements must align with AgentBus Constitution principles:
+  - Security: Managed Identity authentication (Principle IV)
+  - Observability: Distributed tracing, structured logging (Principle VI)
+  - Testing: BDD scenarios with acceptance criteria (Principle III)
+  - Architecture: Vertical slices, module boundaries (Principles I & II)
 -->
 
 ### Functional Requirements

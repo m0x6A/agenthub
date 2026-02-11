@@ -31,7 +31,19 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+### Principle Compliance Checklist
+
+- [ ] **Modular Monolith**: Is feature organized as a bounded module with clear interfaces? No cross-module coupling?
+- [ ] **Vertical Slices**: Are features self-contained (request→validation→handler→persistence→response)? No layered abstractions spanning features?
+- [ ] **Test-First**: Will BDD scenarios be written first? User approval obtained? Tests fail before implementation?
+- [ ] **Security by Identity**: Managed Identity authentication only? No secrets/keys/certificates?
+- [ ] **Modern C# Standards**: .NET 9, C# 13, nullable references enabled, records for DTOs, sealed by default, TimeProvider injection, CancellationToken on all async?
+- [ ] **Observability**: OpenTelemetry tracing, structured logging (Serilog), custom metrics, health endpoints?
+- [ ] **Enterprise-Ready**: Serverless-first? IaC (Bicep)? CI/CD? API versioning? Documented upgrade path?
+
+### Complexity Justification (if any gates fail)
+
+[Document why any gate cannot be met and provide architectural rationale]
 
 ## Project Structure
 
