@@ -26,8 +26,8 @@ namespace AgentBus.Broker.Tests.Features
         
         private static string[] featureTags = ((string[])(null));
         
-        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new System.Globalization.CultureInfo("en-US"), "Features", "Agent Registration and Discovery", "  As an autonomous agent\n  I want to register with the broker and discover other " +
-                "agents\n  So that I can participate in the agent communication network", global::Reqnroll.ProgrammingLanguage.CSharp, featureTags);
+        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new System.Globalization.CultureInfo("en-US"), "Features", "Agent Registration and Discovery", "  As an autonomous agent\r\n  I want to register with the broker and discover other" +
+                " agents\r\n  So that I can participate in the agent communication network", global::Reqnroll.ProgrammingLanguage.CSharp, featureTags);
         
         private Xunit.Abstractions.ITestOutputHelper _testOutputHelper;
         

@@ -19,7 +19,7 @@ public sealed class ServiceBusMessageBroker : IMessageBroker
     {
         _client = client;
         _logger = logger;
-        
+
         var connectionString = configuration["ServiceBus:ConnectionString"];
         if (!string.IsNullOrEmpty(connectionString))
         {
@@ -76,23 +76,24 @@ public sealed class ServiceBusMessageBroker : IMessageBroker
         return envelope;
     }
 
-    public async Task AcknowledgeMessageAsync(
+    public Task AcknowledgeMessageAsync(
         string agentId,
         string messageId,
         CancellationToken cancellationToken)
     {
         var queueName = $"agent-{agentId}-inbox";
         var receiver = _client.CreateReceiver(queueName);
-        
+
         // In a real implementation, we would complete the message by sequence number
         // For now, this is a placeholder
         _logger.LogInformation("Acknowledging message {MessageId} from queue {QueueName}", messageId, queueName);
+        return Task.CompletedTask;
     }
 
     public async Task CreateInboxQueueAsync(string agentId, CancellationToken cancellationToken)
     {
         var queueName = $"agent-{agentId}-inbox";
-        
+
         if (!await _adminClient.QueueExistsAsync(queueName, cancellationToken))
         {
             var options = new CreateQueueOptions(queueName)
@@ -112,7 +113,7 @@ public sealed class ServiceBusMessageBroker : IMessageBroker
     public async Task DeleteInboxQueueAsync(string agentId, CancellationToken cancellationToken)
     {
         var queueName = $"agent-{agentId}-inbox";
-        
+
         if (await _adminClient.QueueExistsAsync(queueName, cancellationToken))
         {
             await _adminClient.DeleteQueueAsync(queueName, cancellationToken);

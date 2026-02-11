@@ -26,9 +26,9 @@ namespace AgentBus.Broker.Tests.Features
         
         private static string[] featureTags = ((string[])(null));
         
-        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new System.Globalization.CultureInfo("en-US"), "Features", "Event Publishing and Subscription", "  As an autonomous agent\n  I want to publish domain events and subscribe to event" +
-                "s from other agents\n  So that I can react to system-wide changes and notificatio" +
-                "ns", global::Reqnroll.ProgrammingLanguage.CSharp, featureTags);
+        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new System.Globalization.CultureInfo("en-US"), "Features", "Event Publishing and Subscription", "  As an autonomous agent\r\n  I want to publish domain events and subscribe to even" +
+                "ts from other agents\r\n  So that I can react to system-wide changes and notificat" +
+                "ions", global::Reqnroll.ProgrammingLanguage.CSharp, featureTags);
         
         private Xunit.Abstractions.ITestOutputHelper _testOutputHelper;
         

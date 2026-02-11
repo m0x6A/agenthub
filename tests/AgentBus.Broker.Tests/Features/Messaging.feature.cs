@@ -26,8 +26,8 @@ namespace AgentBus.Broker.Tests.Features
         
         private static string[] featureTags = ((string[])(null));
         
-        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new System.Globalization.CultureInfo("en-US"), "Features", "Direct Agent-to-Agent Messaging", "  As an autonomous agent\n  I want to send and receive direct messages to/from oth" +
-                "er agents\n  So that I can coordinate tasks and share information", global::Reqnroll.ProgrammingLanguage.CSharp, featureTags);
+        private static global::Reqnroll.FeatureInfo featureInfo = new global::Reqnroll.FeatureInfo(new System.Globalization.CultureInfo("en-US"), "Features", "Direct Agent-to-Agent Messaging", "  As an autonomous agent\r\n  I want to send and receive direct messages to/from ot" +
+                "her agents\r\n  So that I can coordinate tasks and share information", global::Reqnroll.ProgrammingLanguage.CSharp, featureTags);
         
         private Xunit.Abstractions.ITestOutputHelper _testOutputHelper;
         
