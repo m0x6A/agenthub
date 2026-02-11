@@ -3,17 +3,15 @@ var builder = DistributedApplication.CreateBuilder(args);
 Console.WriteLine("🚀 Starting Aspire AppHost...");
 
 // Azure OpenAI for autonomous agent LLM reasoning
-var openai = builder.AddAzureOpenAI("openai");
-Console.WriteLine("✅ Added Azure OpenAI");
+// Uses connection string from user secrets for local development
+var openai = builder.AddConnectionString("openai");
+Console.WriteLine("✅ Added Azure OpenAI connection");
 
 // Azure Cosmos DB for agent registry and subscription storage
 Console.WriteLine("📦 Adding Cosmos DB...");
 var cosmosDb = builder.AddAzureCosmosDB("cosmosdb")
     .RunAsEmulator();  // Use local emulator for development
 Console.WriteLine("✅ Added Cosmos DB emulator");
-
-var agentbusDb = cosmosDb.AddCosmosDatabase("agentbus");
-Console.WriteLine("✅ Added 'agentbus' database");
 
 // Azure Service Bus for agent communication
 Console.WriteLine("📦 Adding Service Bus...");
@@ -24,9 +22,10 @@ Console.WriteLine("✅ Added Service Bus emulator");
 // AgentBus Broker - Core message broker for all agents
 Console.WriteLine("📦 Adding AgentBus.Broker project...");
 var broker = builder.AddProject<Projects.AgentBus_Broker>("agentbus-broker")
-    .WithReference(agentbusDb)
+    .WithReference(cosmosDb)
     .WithReference(serviceBus)
-    .WithHttpEndpoint(port: 5000, name: "http");
+    .WithHttpEndpoint(port: 5000, name: "http")
+    .WithEnvironment("CosmosDb:DatabaseName", "agentbus");
 Console.WriteLine("✅ Added broker with references");
 
 Console.WriteLine("📦 Adding autonomous agents...");
@@ -64,6 +63,7 @@ Console.WriteLine("✅ Added Internal Communications Agent");
 Console.WriteLine("📦 Adding Logistics Coordination UI...");
 var logisticsUI = builder.AddProject<Projects.AgentBus_Examples_LogisticsUI>("logistics-ui")
     .WithReference(broker)
+    .WithEnvironment("AgentBusUrl", broker.GetEndpoint("http"))
     .WithHttpEndpoint(port: 5001, name: "http");
 Console.WriteLine("✅ Added Logistics Coordination UI");
 
