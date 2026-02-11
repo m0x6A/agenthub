@@ -70,7 +70,7 @@ Integration tests using `WebApplicationFactory` verify the full HTTP pipeline. U
 **Rationale:** Eliminates credential rotation, secret sprawl, and credential leakage risks. Managed Identity is Azure's recommended security pattern and aligns with zero-trust architecture.
 
 ### V. Modern C# Standards
-**Leverage latest language features for safety and clarity.** All code MUST target .NET 9 (LTS) and C# 13 with:
+**Leverage latest language features for safety and clarity.** All code MUST target .NET 10 (LTS) and C# 14 with:
 - **Nullable reference types enabled** — all reference types explicitly nullable or non-nullable
 - **File-scoped namespaces** — required
 - **Primary constructors** — preferred for dependency injection
@@ -110,7 +110,7 @@ Enterprise upgrade paths (Service Bus Premium, Cosmos DB provisioned throughput,
 ## Technology Stack Standards
 
 ### Mandatory Stack (MVP)
-- **Runtime:** .NET 9 (LTS), C# 13, ASP.NET Core Minimal APIs
+- **Runtime:** .NET 10 (LTS), C# 14, ASP.NET Core Minimal APIs
 - **Data:** Azure Cosmos DB (NoSQL API, Serverless), Azure Service Bus (Standard)
 - **Hosting:** Azure Container Apps (Consumption), Azure Container Registry
 - **Identity:** Microsoft Entra ID, User-Assigned Managed Identities

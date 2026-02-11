@@ -1,0 +1,55 @@
+name: Deploy Application
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+    
+    - name: Azure Login (OIDC)
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    
+    - name: Build and Push Docker Image
+      run: |
+        az acr login --name ${{ secrets.ACR_NAME }}
+        docker build -t ${{ secrets.ACR_NAME }}.azurecr.io/agentbus-broker:${{ github.sha }} \
+          -t ${{ secrets.ACR_NAME }}.azurecr.io/agentbus-broker:latest \
+          -f src/AgentBus.Broker/Dockerfile .
+        docker push ${{ secrets.ACR_NAME }}.azurecr.io/agentbus-broker:${{ github.sha }}
+        docker push ${{ secrets.ACR_NAME }}.azurecr.io/agentbus-broker:latest
+    
+    - name: Deploy to Container Apps
+      run: |
+        az containerapp update \
+          --name agentbus-broker-${{ github.event.inputs.environment }} \
+          --resource-group agentbus-${{ github.event.inputs.environment }}-rg \
+          --image ${{ secrets.ACR_NAME }}.azurecr.io/agentbus-broker:${{ github.sha }}

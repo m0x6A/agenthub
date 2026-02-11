@@ -1,0 +1,1161 @@
+openapi: 3.1.0
+info:
+  title: AgentBus Broker API
+  version: 1.0.0
+  description: |
+    RESTful API for autonomous agent registration, discovery, direct messaging, and pub/sub eventing.
+    
+    **Authentication**: All endpoints require Entra ID JWT bearer token with `AgentBus.Agent` or `AgentBus.Admin` role.
+    
+    **Rate Limits**: MVP has no enforced rate limits. Enterprise upgrade adds per-agent quotas via Azure API Management.
+  contact:
+    name: AgentBus Team
+    email: [email protected]
+  license:
+    name: MIT
+
+servers:
+  - url: https://agentbus-broker.example.com
+    description: Production
+  - url: https://agentbus-broker-dev.example.com
+    description: Development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Registration
+    description: Agent registration, discovery, and lifecycle management
+  - name: Messaging
+    description: Direct point-to-point messaging between agents
+  - name: Eventing
+    description: Publish/subscribe event-driven communication
+  - name: Health
+    description: Service health and readiness checks
+
+paths:
+  /api/v1/agents:
+    post:
+      operationId: registerAgent
+      summary: Register new agent
+      description: |
+        Registers a new autonomous agent with the broker. Creates dedicated inbox queue in Service Bus.
+        Agent must authenticate with User-Assigned Managed Identity. Principal ID from JWT is stored in registration.
+      tags:
+        - Registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterAgentRequest'
+            examples:
+              logisticsCoordinator:
+                summary: Logistics Coordinator Agent
+                value:
+                  name: Logistics Coordinator
+                  version: 1.0.0
+                  capabilities:
+                    - schedule-drone
+                    - assign-route
+                    - calculate-eta
+                  messageTypes:
+                    accepts:
+                      - command.logistics.*
+                      - query.route.*
+                    emits:
+                      - event.logistics.route-assigned
+                      - event.logistics.drone-scheduled
+                  metadata:
+                    owner: [email protected]
+                    environment: prod
+                    tags:
+                      - logistics
+                      - critical-path
+      responses:
+        '201':
+          description: Agent successfully registered
+          headers:
+            Location:
+              description: URI of created agent resource
+              schema:
+                type: string
+                format: uri
+                example: /api/v1/agents/logistics-coordinator-v1-abc123
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterAgentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Agent with same ID already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Conflict
+                message: Agent with ID 'logistics-coordinator-v1-abc123' already registered
+                traceId: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+    get:
+      operationId: discoverAgents
+      summary: Discover agents by capability
+      description: |
+        Query active agents by capability filter. Returns all registered agents matching the capability.
+        Results exclude agents with status 'inactive' (missed heartbeats > 5 minutes).
+      tags:
+        - Registration
+      parameters:
+        - name: capability
+          in: query
+          required: false
+          description: Filter agents by exact capability name. Omit to return all active agents.
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 100
+            example: schedule-drone
+        - name: status
+          in: query
+          required: false
+          description: Filter by agent status
+          schema:
+            type: string
+            enum:
+              - active
+              - inactive
+            default: active
+      responses:
+        '200':
+          description: List of matching agents
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - agents
+                  - totalCount
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Agent'
+                  totalCount:
+                    type: integer
+                    description: Total number of agents matching filter
+                    example: 3
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/agents/{agentId}:
+    get:
+      operationId: getAgent
+      summary: Get agent by ID
+      description: Retrieve specific agent registration details
+      tags:
+        - Registration
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+    delete:
+      operationId: deregisterAgent
+      summary: Deregister agent
+      description: |
+        Removes agent from registry and deletes inbox queue. Agent must deregister itself (JWT principal ID must match).
+        Admin role can deregister any agent.
+      tags:
+        - Registration
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '204':
+          description: Agent successfully deregistered
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden - agent can only deregister itself (unless Admin role)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/agents/{agentId}/heartbeat:
+    patch:
+      operationId: updateHeartbeat
+      summary: Update agent heartbeat
+      description: |
+        Updates agent's lastHeartbeat timestamp to current time. Agents should call this every 1-2 minutes.
+        Agents with lastHeartbeat > 5 minutes are marked inactive by background job.
+      tags:
+        - Registration
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '204':
+          description: Heartbeat updated successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden - agent can only update its own heartbeat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/messages/send:
+    post:
+      operationId: sendMessage
+      summary: Send direct message to agent
+      description: |
+        Sends a point-to-point message to a specific agent's inbox queue. Sender identity validated from JWT.
+        Target agent must exist in registry (can be inactive).
+      tags:
+        - Messaging
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+            examples:
+              scheduleDroneCommand:
+                summary: Schedule Drone Command
+                value:
+                  to: logistics-coordinator-v1-abc123
+                  messageType: command.logistics.schedule-drone
+                  payload:
+                    droneId: drone-42
+                    destination:
+                      lat: 37.7749
+                      lon: -122.4194
+                    priority: high
+                  correlationId: corr-12345678-90ab-cdef-1234-567890abcdef
+                  ttl: PT24H
+                  headers:
+                    x-trace-id: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+      responses:
+        '202':
+          description: Message accepted and enqueued
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - messageId
+                properties:
+                  messageId:
+                    type: string
+                    format: uuid
+                    description: Unique message identifier
+                    example: msg-550e8400-e29b-41d4-a716-446655440000
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Target agent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: NotFound
+                message: Target agent 'unknown-agent-id' does not exist
+                traceId: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+        '413':
+          description: Payload too large (exceeds 256 KB limit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/messages/receive:
+    get:
+      operationId: receiveMessage
+      summary: Receive message from inbox
+      description: |
+        Retrieves oldest unprocessed message from caller's inbox queue using long-polling.
+        Blocks up to 30 seconds if no messages available. Returns 204 No Content if timeout expires.
+        Message remains in queue until acknowledged via POST /messages/{messageId}/ack.
+      tags:
+        - Messaging
+      parameters:
+        - name: timeout
+          in: query
+          required: false
+          description: Long-polling timeout in seconds (max 30)
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 30
+            default: 30
+      responses:
+        '200':
+          description: Message received
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageEnvelope'
+        '204':
+          description: No messages available (timeout expired)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/messages/{messageId}/ack:
+    post:
+      operationId: acknowledgeMessage
+      summary: Acknowledge message processing
+      description: |
+        Completes message processing and removes it from inbox queue. Must be called after successful message handling.
+        If not acknowledged, message returns to queue after visibility timeout and is redelivered (max 10 attempts before DLQ).
+      tags:
+        - Messaging
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          description: Message ID to acknowledge
+          schema:
+            type: string
+            format: uuid
+            example: msg-550e8400-e29b-41d4-a716-446655440000
+      responses:
+        '204':
+          description: Message acknowledged successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Message not found or already acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/events/publish:
+    post:
+      operationId: publishEvent
+      summary: Publish domain event
+      description: |
+        Publishes an event to a Service Bus topic. Topic is auto-provisioned if not exists.
+        Event is delivered to all active subscriptions (fan-out).
+      tags:
+        - Eventing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishEventRequest'
+            examples:
+              droneScheduled:
+                summary: Drone Scheduled Event
+                value:
+                  eventType: events.logistics.drone-scheduled
+                  dataVersion: 1.0.0
+                  data:
+                    droneId: drone-42
+                    flightPlan:
+                      origin:
+                        lat: 37.7749
+                        lon: -122.4194
+                      destination:
+                        lat: 34.0522
+                        lon: -118.2437
+                      estimatedDuration: PT2H30M
+                    scheduledTime: 2026-02-11T12:00:00Z
+                  headers:
+                    x-correlation-id: corr-12345678-90ab-cdef-1234-567890abcdef
+      responses:
+        '202':
+          description: Event accepted and published
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - eventId
+                properties:
+                  eventId:
+                    type: string
+                    format: uuid
+                    description: Unique event identifier
+                    example: evt-7c9e6679-7425-40de-944b-e07fc1f90ae7
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/events/subscribe:
+    post:
+      operationId: subscribeToEvent
+      summary: Subscribe to event type
+      description: |
+        Creates a Service Bus subscription for the calling agent on the specified event topic.
+        Agents receive events via GET /events/receive/{subscriptionId}.
+      tags:
+        - Eventing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscribeRequest'
+            examples:
+              weatherAlerts:
+                summary: Subscribe to Weather Alerts
+                value:
+                  eventType: events.weather.alert-issued
+                  filters:
+                    - severity='high'
+                    - region IN ('west-coast', 'central')
+      responses:
+        '201':
+          description: Subscription created successfully
+          headers:
+            Location:
+              description: URI of subscription resource
+              schema:
+                type: string
+                format: uri
+                example: /api/v1/events/subscriptions/sub-f47ac10b-58cc-4372-a567-0e02b2c3d479
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Subscription already exists for this agent and event type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/events/receive/{subscriptionId}:
+    get:
+      operationId: receiveEvent
+      summary: Receive event from subscription
+      description: |
+        Retrieves oldest unprocessed event from the specified subscription using long-polling.
+        Blocks up to 30 seconds if no events available. Returns 204 No Content if timeout expires.
+      tags:
+        - Eventing
+      parameters:
+        - name: subscriptionId
+          in: path
+          required: true
+          description: Subscription ID
+          schema:
+            type: string
+            format: uuid
+            example: sub-f47ac10b-58cc-4372-a567-0e02b2c3d479
+        - name: timeout
+          in: query
+          required: false
+          description: Long-polling timeout in seconds (max 30)
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 30
+            default: 30
+      responses:
+        '200':
+          description: Event received
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventEnvelope'
+        '204':
+          description: No events available (timeout expired)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Subscription does not belong to calling agent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/events/subscriptions/{subscriptionId}:
+    delete:
+      operationId: unsubscribeFromEvent
+      summary: Unsubscribe from event type
+      description: |
+        Removes subscription and deletes Service Bus subscription. Agent stops receiving events of that type.
+      tags:
+        - Eventing
+      parameters:
+        - name: subscriptionId
+          in: path
+          required: true
+          description: Subscription ID to delete
+          schema:
+            type: string
+            format: uuid
+            example: sub-f47ac10b-58cc-4372-a567-0e02b2c3d479
+      responses:
+        '204':
+          description: Subscription deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Subscription does not belong to calling agent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/health:
+    get:
+      operationId: getHealth
+      summary: Health check
+      description: |
+        Liveness probe. Returns 200 OK if service is running. Checks Cosmos DB, Service Bus, and Application Insights connectivity.
+      tags:
+        - Health
+      security: []  # No auth required for health checks
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service is unhealthy (one or more dependencies failed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/v1/health/ready:
+    get:
+      operationId: getReadiness
+      summary: Readiness check
+      description: |
+        Readiness probe. Returns 200 OK if service is ready to accept traffic. Verifies all dependencies are responsive.
+      tags:
+        - Health
+      security: []  # No auth required for health checks
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service is not ready (dependencies initializing)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Entra ID JWT token with `AgentBus.Agent` or `AgentBus.Admin` role in `roles` claim.
+        Example: `Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOi...`
+
+  parameters:
+    AgentId:
+      name: agentId
+      in: path
+      required: true
+      description: Agent unique identifier
+      schema:
+        type: string
+        minLength: 3
+        maxLength: 64
+        pattern: '^[a-zA-Z0-9\-]+$'
+        example: logistics-coordinator-v1-abc123
+
+  schemas:
+    RegisterAgentRequest:
+      type: object
+      required:
+        - name
+        - version
+        - capabilities
+        - messageTypes
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+          description: Human-readable agent name
+          example: Logistics Coordinator
+        version:
+          type: string
+          pattern: '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[a-zA-Z0-9\-.]+)?(\+[a-zA-Z0-9\-.]+)?$'
+          description: SemVer 2.0 version
+          example: 1.0.0
+        capabilities:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 3
+            maxLength: 100
+            pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          description: List of functional capabilities
+          example:
+            - schedule-drone
+            - assign-route
+        messageTypes:
+          type: object
+          required:
+            - accepts
+            - emits
+          properties:
+            accepts:
+              type: array
+              maxItems: 50
+              items:
+                type: string
+              description: Message type patterns agent handles
+              example:
+                - command.logistics.*
+                - query.route.*
+            emits:
+              type: array
+              maxItems: 50
+              items:
+                type: string
+              description: Message types agent publishes
+              example:
+                - event.logistics.route-assigned
+        healthCheckUrl:
+          type: string
+          format: uri
+          description: Optional health check endpoint URL
+          example: https://logistics-agent.example.com/health
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          maxProperties: 10
+          description: Custom agent metadata (max 10 key-value pairs)
+          example:
+            owner: [email protected]
+            environment: prod
+
+    RegisterAgentResponse:
+      allOf:
+        - $ref: '#/components/schemas/Agent'
+        - type: object
+          description: Complete agent registration including generated fields
+
+    Agent:
+      type: object
+      required:
+        - id
+        - name
+        - version
+        - status
+        - capabilities
+        - messageTypes
+        - identity
+        - endpoints
+        - timestamps
+      properties:
+        id:
+          type: string
+          description: Unique agent identifier (auto-generated)
+          example: logistics-coordinator-v1-abc123
+        name:
+          type: string
+          example: Logistics Coordinator
+        version:
+          type: string
+          example: 1.0.0
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+          description: Current operational status
+        capabilities:
+          type: array
+          items:
+            type: string
+          example:
+            - schedule-drone
+            - assign-route
+        messageTypes:
+          type: object
+          properties:
+            accepts:
+              type: array
+              items:
+                type: string
+            emits:
+              type: array
+              items:
+                type: string
+        identity:
+          type: object
+          required:
+            - managedIdentityId
+            - principalId
+            - tenantId
+          properties:
+            managedIdentityId:
+              type: string
+              description: Azure Managed Identity resource ID
+              example: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/agent-logistics
+            principalId:
+              type: string
+              format: uuid
+              description: Managed Identity principal ID (from JWT sub claim)
+            tenantId:
+              type: string
+              format: uuid
+              description: Entra ID tenant ID
+        endpoints:
+          type: object
+          required:
+            - inboxQueueName
+          properties:
+            inboxQueueName:
+              type: string
+              description: Service Bus inbox queue name
+              example: agent-logistics-coordinator-v1-abc123-inbox
+            healthCheckUrl:
+              type: string
+              format: uri
+              nullable: true
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+        timestamps:
+          type: object
+          required:
+            - registeredAt
+            - lastHeartbeat
+          properties:
+            registeredAt:
+              type: string
+              format: date-time
+              description: Registration timestamp (ISO 8601 UTC)
+            lastHeartbeat:
+              type: string
+              format: date-time
+              description: Last heartbeat timestamp (ISO 8601 UTC)
+
+    SendMessageRequest:
+      type: object
+      required:
+        - to
+        - messageType
+        - payload
+      properties:
+        to:
+          type: string
+          description: Target agent ID
+          example: logistics-coordinator-v1-abc123
+        messageType:
+          type: string
+          minLength: 3
+          maxLength: 100
+          description: Semantic message type
+          example: command.logistics.schedule-drone
+        payload:
+          type: object
+          description: Business payload (JSON serializable, max 200 KB)
+          example:
+            droneId: drone-42
+            destination:
+              lat: 37.7749
+              lon: -122.4194
+        correlationId:
+          type: string
+          format: uuid
+          description: Optional correlation ID for request/response pairing
+        conversationId:
+          type: string
+          format: uuid
+          description: Optional conversation thread identifier
+        ttl:
+          type: string
+          format: duration
+          description: Time-to-live (ISO 8601 duration, max P14D)
+          default: PT24H
+          example: PT24H
+        replyTo:
+          type: string
+          description: Optional reply-to queue name (defaults to sender inbox)
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          maxProperties: 10
+          description: Custom headers (max 10 key-value pairs)
+
+    MessageEnvelope:
+      type: object
+      required:
+        - messageId
+        - from
+        - to
+        - messageType
+        - timestamp
+        - payload
+      properties:
+        messageId:
+          type: string
+          format: uuid
+          description: Unique message identifier
+        correlationId:
+          type: string
+          format: uuid
+          nullable: true
+        conversationId:
+          type: string
+          format: uuid
+          nullable: true
+        from:
+          type: string
+          description: Sender agent ID
+        to:
+          type: string
+          description: Receiver agent ID
+        messageType:
+          type: string
+          description: Semantic message type
+        timestamp:
+          type: string
+          format: date-time
+          description: Message creation timestamp (ISO 8601 UTC)
+        ttl:
+          type: string
+          format: duration
+          nullable: true
+          description: Time-to-live
+        payload:
+          type: object
+          description: Business payload
+        replyTo:
+          type: string
+          nullable: true
+          description: Reply-to queue name
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Custom headers
+
+    PublishEventRequest:
+      type: object
+      required:
+        - eventType
+        - dataVersion
+        - data
+      properties:
+        eventType:
+          type: string
+          pattern: '^events\.[a-z0-9-]+\.[a-z0-9-]+$'
+          description: Hierarchical event type (topic name)
+          example: events.logistics.drone-scheduled
+        dataVersion:
+          type: string
+          pattern: '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[a-zA-Z0-9\-.]+)?(\+[a-zA-Z0-9\-.]+)?$'
+          description: Event schema version (SemVer)
+          example: 1.0.0
+        data:
+          type: object
+          description: Event payload (JSON serializable, max 200 KB)
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          maxProperties: 10
+          description: Custom headers for filtering
+
+    EventEnvelope:
+      type: object
+      required:
+        - eventId
+        - eventType
+        - source
+        - timestamp
+        - dataVersion
+        - data
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: Unique event identifier
+        eventType:
+          type: string
+          description: Hierarchical event type
+        source:
+          type: string
+          description: Publisher agent ID
+        timestamp:
+          type: string
+          format: date-time
+          description: Event creation timestamp (ISO 8601 UTC)
+        dataVersion:
+          type: string
+          description: Event schema version
+        data:
+          type: object
+          description: Event payload
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Custom headers
+
+    SubscribeRequest:
+      type: object
+      required:
+        - eventType
+      properties:
+        eventType:
+          type: string
+          pattern: '^events\.[a-z0-9-]+\.[a-z0-9-]+$'
+          description: Event type to subscribe to
+          example: events.weather.alert-issued
+        filters:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+          description: Service Bus SQL filter rules
+          example:
+            - severity='high'
+            - region IN ('west-coast', 'central')
+
+    Subscription:
+      type: object
+      required:
+        - id
+        - agentId
+        - eventType
+        - serviceBusSubscriptionName
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Subscription unique identifier
+        agentId:
+          type: string
+          description: Subscriber agent ID
+        eventType:
+          type: string
+          description: Subscribed event type
+        serviceBusSubscriptionName:
+          type: string
+          description: Service Bus subscription name
+        filters:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Applied SQL filter rules
+        createdAt:
+          type: string
+          format: date-time
+          description: Subscription creation timestamp (ISO 8601 UTC)
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - checks
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - unhealthy
+          description: Overall health status
+        checks:
+          type: object
+          description: Individual dependency health checks
+          properties:
+            cosmosDb:
+              $ref: '#/components/schemas/HealthCheck'
+            serviceBus:
+              $ref: '#/components/schemas/HealthCheck'
+            applicationInsights:
+              $ref: '#/components/schemas/HealthCheck'
+        timestamp:
+          type: string
+          format: date-time
+          description: Health check timestamp
+
+    HealthCheck:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - unhealthy
+          description: Dependency status
+        responseTime:
+          type: number
+          description: Response time in milliseconds
+          example: 45.3
+        error:
+          type: string
+          nullable: true
+          description: Error message if unhealthy
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - traceId
+      properties:
+        error:
+          type: string
+          description: Error type
+          example: BadRequest
+        message:
+          type: string
+          description: Human-readable error message
+          example: Invalid agent version format - must be SemVer 2.0
+        traceId:
+          type: string
+          description: Distributed trace ID for correlation
+          example: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+        details:
+          type: object
+          nullable: true
+          description: Additional error details (validation errors, etc.)
+
+  responses:
+    BadRequest:
+      description: Invalid request (validation error)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: BadRequest
+            message: Validation failed
+            traceId: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+            details:
+              version: Must be valid SemVer 2.0 format
+              capabilities: Must have at least 1 capability
+
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Unauthorized
+            message: Missing or invalid JWT token
+            traceId: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: NotFound
+            message: Agent 'unknown-agent-id' not found
+            traceId: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+
+    PayloadTooLarge:
+      description: Payload exceeds 256 KB limit
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: PayloadTooLarge
+            message: Message payload exceeds Service Bus Standard limit of 256 KB
+            traceId: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+
+    ServiceUnavailable:
+      description: Service temporarily unavailable (dependency failure)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: ServiceUnavailable
+            message: Cosmos DB temporarily unavailable - retry after 5 seconds
+            traceId: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+      headers:
+        Retry-After:
+          description: Suggested retry delay in seconds
+          schema:
+            type: integer
+            example: 5

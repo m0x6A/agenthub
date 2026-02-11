@@ -37,7 +37,7 @@
 - [ ] **Vertical Slices**: Are features self-contained (request→validation→handler→persistence→response)? No layered abstractions spanning features?
 - [ ] **Test-First**: Will BDD scenarios be written first? User approval obtained? Tests fail before implementation?
 - [ ] **Security by Identity**: Managed Identity authentication only? No secrets/keys/certificates?
-- [ ] **Modern C# Standards**: .NET 9, C# 13, nullable references enabled, records for DTOs, sealed by default, TimeProvider injection, CancellationToken on all async?
+- [ ] **Modern C# Standards**: .NET 10, C# 14, nullable references enabled, records for DTOs, sealed by default, TimeProvider injection, CancellationToken on all async?
 - [ ] **Observability**: OpenTelemetry tracing, structured logging (Serilog), custom metrics, health endpoints?
 - [ ] **Enterprise-Ready**: Serverless-first? IaC (Bicep)? CI/CD? API versioning? Documented upgrade path?
 
