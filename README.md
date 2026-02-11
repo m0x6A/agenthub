@@ -31,25 +31,51 @@ A production-ready message broker platform that enables autonomous agents to reg
 - [Docker](https://docs.docker.com/get-docker/) (for containerized deployment)
 - Azure subscription with Contributor access
 
-### Quick Start
+### Local Development (Recommended for Getting Started)
 
-See [specs/001-deployable-mvp/quickstart.md](specs/001-deployable-mvp/quickstart.md) for detailed getting started guide.
+**Easiest way - no Azure subscription needed!** See [LOCAL_DEVELOPMENT_GUIDE.md](LOCAL_DEVELOPMENT_GUIDE.md) for complete instructions.
 
-### Build and Test Locally
+**Quick start with Docker emulators:**
+```bash
+# Windows (PowerShell)
+.\setup-local-dev.ps1     # Menu-driven interactive setup
+
+# Linux/macOS
+chmod +x setup-local-dev.sh
+./setup-local-dev.sh
+```
+
+Or manually:
+```bash
+# Start emulators (Cosmos DB + Service Bus)
+docker-compose up -d
+
+# Run the broker
+cd src/AgentBus.Broker
+dotnet restore
+dotnet run
+```
+
+Visit `https://localhost:5001/swagger` to explore the API.
+
+### Build and Test
 
 ```bash
-# Restore dependencies
+# Restore and build
 dotnet restore
-
-# Build the solution
 dotnet build
 
 # Run tests
 dotnet test
 
-# Run locally (requires Azure services or emulators)
+# Run locally
 dotnet run --project src/AgentBus.Broker
 ```
+
+### Deploy to Azure
+
+See [specs/001-deployable-mvp/quickstart.md](specs/001-deployable-mvp/quickstart.md) for cloud deployment guide.
+
 
 ### Deploy to Azure
 
@@ -116,6 +142,13 @@ AgentBus/
 ### Health
 - `GET /api/v1/health` - Health check (liveness)
 - `GET /api/v1/health/ready` - Readiness check
+
+## Documentation
+
+- **[LOCAL_DEVELOPMENT_GUIDE.md](LOCAL_DEVELOPMENT_GUIDE.md)** - Complete local setup with Docker emulators (⭐ Start here!)
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System design, patterns, and component details
+- **[docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md)** - BDD tests and testing patterns
+- **[specs/001-deployable-mvp/](specs/001-deployable-mvp/)** - MVP specification and requirements
 
 ## Contributing
 
