@@ -137,8 +137,8 @@ public class ServiceBusAgentBusClient : IAgentBusClient
                 Encoding.UTF8,
                 "application/json");
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)); // 10 second timeout for publish
-            var response = await _httpClient.PostAsync("/api/events/publish", content, cts.Token);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30)); // 30 second timeout for publish
+            var response = await _httpClient.PostAsync("/api/v1/events/publish", content, cts.Token);
             response.EnsureSuccessStatusCode();
             
             Log.Information("[ServiceBus] Published event via HTTP: {EventType}", eventType);

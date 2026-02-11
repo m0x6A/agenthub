@@ -14,6 +14,8 @@ public sealed class ServiceBusEventBroker : IEventBroker
     private readonly ServiceBusAdministrationClient _adminClient;
     private readonly ILogger<ServiceBusEventBroker> _logger;
     private readonly Dictionary<string, Subscription> _subscriptions = new();
+    private readonly HashSet<string> _createdTopics = new(); // Cache created topics
+    private readonly SemaphoreSlim _topicCreationLock = new(1, 1); // Thread-safe topic creation
 
     public ServiceBusEventBroker(
         ServiceBusClient client,
@@ -38,20 +40,9 @@ public sealed class ServiceBusEventBroker : IEventBroker
     {
         var topicName = envelope.EventType.Replace(".", "-");
         
-        // Create specific event type topic if it doesn't exist
-        if (!await _adminClient.TopicExistsAsync(topicName, cancellationToken))
-        {
-            var options = new CreateTopicOptions(topicName)
-            {
-                DefaultMessageTimeToLive = TimeSpan.FromDays(1),
-                RequiresDuplicateDetection = true,
-                DuplicateDetectionHistoryTimeWindow = TimeSpan.FromMinutes(10)
-            };
-            await _adminClient.CreateTopicAsync(options, cancellationToken);
-        }
-        
-        // Ensure global broadcast topic exists
-        await EnsureGlobalBroadcastTopicExistsAsync(cancellationToken);
+        // Ensure topics exist (cached - only creates once)
+        await EnsureTopicExistsAsync(topicName, cancellationToken);
+        await EnsureTopicExistsAsync(GlobalBroadcastTopic, cancellationToken);
 
         var messageBody = JsonSerializer.Serialize(envelope);
         var message = new ServiceBusMessage(messageBody)
@@ -109,11 +100,8 @@ public sealed class ServiceBusEventBroker : IEventBroker
         var subscriptionId = Guid.NewGuid().ToString();
         var subscriptionName = $"sub-{agentId}-{subscriptionId[..8]}";
 
-        if (!await _adminClient.TopicExistsAsync(topicName, cancellationToken))
-        {
-            var topicOptions = new CreateTopicOptions(topicName);
-            await _adminClient.CreateTopicAsync(topicOptions, cancellationToken);
-        }
+        // Ensure topic exists (cached)
+        await EnsureTopicExistsAsync(topicName, cancellationToken);
 
         var options = new CreateSubscriptionOptions(topicName, subscriptionName)
         {
@@ -206,7 +194,7 @@ public sealed class ServiceBusEventBroker : IEventBroker
     
     public async Task<Subscription> SubscribeToAllEventsAsync(string agentId, CancellationToken cancellationToken)
     {
-        await EnsureGlobalBroadcastTopicExistsAsync(cancellationToken);
+        await EnsureTopicExistsAsync(GlobalBroadcastTopic, cancellationToken);
         
         var subscriptionId = Guid.NewGuid().ToString();
         var subscriptionName = $"sub-{agentId}-global-{subscriptionId[..8]}";
@@ -238,19 +226,44 @@ public sealed class ServiceBusEventBroker : IEventBroker
         return subscription;
     }
     
-    private async Task EnsureGlobalBroadcastTopicExistsAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Ensures a topic exists, using cache to avoid repeated admin API calls
+    /// </summary>
+    private async Task EnsureTopicExistsAsync(string topicName, CancellationToken cancellationToken)
     {
-        if (!await _adminClient.TopicExistsAsync(GlobalBroadcastTopic, cancellationToken))
+        // Fast path: topic already created
+        if (_createdTopics.Contains(topicName))
         {
-            var options = new CreateTopicOptions(GlobalBroadcastTopic)
+            return;
+        }
+
+        // Slow path: need to check/create topic
+        await _topicCreationLock.WaitAsync(cancellationToken);
+        try
+        {
+            // Double-check after acquiring lock
+            if (_createdTopics.Contains(topicName))
             {
-                DefaultMessageTimeToLive = TimeSpan.FromDays(1),
-                RequiresDuplicateDetection = true,
-                DuplicateDetectionHistoryTimeWindow = TimeSpan.FromMinutes(10)
-            };
-            await _adminClient.CreateTopicAsync(options, cancellationToken);
-            
-            _logger.LogInformation("Created global broadcast topic: {TopicName}", GlobalBroadcastTopic);
+                return;
+            }
+
+            if (!await _adminClient.TopicExistsAsync(topicName, cancellationToken))
+            {
+                var options = new CreateTopicOptions(topicName)
+                {
+                    DefaultMessageTimeToLive = TimeSpan.FromDays(1),
+                    RequiresDuplicateDetection = true,
+                    DuplicateDetectionHistoryTimeWindow = TimeSpan.FromMinutes(10)
+                };
+                await _adminClient.CreateTopicAsync(options, cancellationToken);
+                _logger.LogInformation("Created Service Bus topic: {TopicName}", topicName);
+            }
+
+            _createdTopics.Add(topicName);
+        }
+        finally
+        {
+            _topicCreationLock.Release();
         }
     }
 }
