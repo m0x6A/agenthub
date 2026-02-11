@@ -3,6 +3,7 @@ using AgentBus.Broker.Modules.Registration.Features.DiscoverAgents;
 using AgentBus.Broker.Modules.Registration.Features.GetAgent;
 using AgentBus.Broker.Modules.Registration.Features.UpdateHeartbeat;
 using AgentBus.Broker.Modules.Registration.Features.DeregisterAgent;
+using AgentBus.Broker.SharedKernel.Interfaces;
 
 namespace AgentBus.Broker.Modules.Registration;
 
@@ -10,6 +11,9 @@ public static class RegistrationModule
 {
     public static IServiceCollection AddRegistrationModule(this IServiceCollection services)
     {
+        // Register infrastructure
+        services.AddSingleton<IAgentRegistry, CosmosDbAgentRegistry>();
+
         // Register handlers
         services.AddScoped<RegisterAgentHandler>();
         services.AddScoped<DiscoverAgentsHandler>();
