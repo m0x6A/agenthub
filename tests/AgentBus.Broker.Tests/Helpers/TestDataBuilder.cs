@@ -40,6 +40,7 @@ public static class TestDataBuilder
                 SupportsEventSubscription: true),
             EventSubscriptions: Array.Empty<EventSubscription>(),
             EventsPublished: Array.Empty<string>(),
+            PreferredTransport: TransportPreference.Auto,
             Metadata: null,
             Timestamps: new AgentTimestamps(
                 RegisteredAt: DateTime.UtcNow.AddHours(-1),

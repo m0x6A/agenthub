@@ -13,6 +13,7 @@ public sealed record Agent(
     CommunicationCapabilities Communication,
     EventSubscription[] EventSubscriptions,
     string[] EventsPublished,
+    TransportPreference PreferredTransport,
     AgentMetadata? Metadata,
     AgentTimestamps Timestamps);
 

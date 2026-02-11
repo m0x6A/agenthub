@@ -12,6 +12,7 @@ public sealed record RegisterAgentRequest(
     string A2AEndpointUrl,
     CommunicationCapabilities Communication,
     string[] EventsPublished,
+    TransportPreference PreferredTransport,
     AgentMetadata? Metadata,
     string? HealthCheckUrl = null,
     string? InboxQueueName = null);

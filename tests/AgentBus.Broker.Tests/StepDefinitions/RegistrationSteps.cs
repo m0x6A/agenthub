@@ -76,6 +76,7 @@ public class RegistrationSteps : IDisposable
                 supportsEventSubscription = agent.Communication.SupportsEventSubscription
             },
             eventsPublished = agent.EventsPublished,
+            preferredTransport = "Auto",
             healthCheckUrl = agent.Endpoints.HealthCheckUrl
         };
 
@@ -112,7 +113,8 @@ public class RegistrationSteps : IDisposable
                 supportsEventPublishing = true,
                 supportsEventSubscription = true
             },
-            eventsPublished = Array.Empty<string>()
+            eventsPublished = Array.Empty<string>(),
+            preferredTransport = "Auto"
         };
 
         _response = await _client.PostAsJsonAsync("/api/v1/agents", request);

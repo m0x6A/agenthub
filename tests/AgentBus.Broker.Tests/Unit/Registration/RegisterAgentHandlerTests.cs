@@ -41,6 +41,7 @@ public class RegisterAgentHandlerTests
             A2AEndpointUrl: "https://test-agent.example.com/a2a",
             Communication: new CommunicationCapabilities(true, true, true),
             EventsPublished: Array.Empty<string>(),
+            PreferredTransport: TransportPreference.Auto,
             Metadata: null);
 
         _mockRegistry
@@ -53,6 +54,7 @@ public class RegisterAgentHandlerTests
                 new CommunicationCapabilities(true, true, true),
                 Array.Empty<EventSubscription>(),
                 Array.Empty<string>(),
+                TransportPreference.Auto,
                 null,
                 new AgentTimestamps(DateTime.UtcNow, DateTime.UtcNow))));
 
@@ -86,6 +88,7 @@ public class RegisterAgentHandlerTests
             A2AEndpointUrl: "https://test-agent-002.example.com/a2a",
             Communication: new CommunicationCapabilities(true, true, true),
             EventsPublished: Array.Empty<string>(),
+            PreferredTransport: TransportPreference.Auto,
             Metadata: null);
 
         Agent? capturedAgent = null;
@@ -115,6 +118,7 @@ public class RegisterAgentHandlerTests
             A2AEndpointUrl: "https://test-agent-003.example.com/a2a",
             Communication: new CommunicationCapabilities(true, true, true),
             EventsPublished: Array.Empty<string>(),
+            PreferredTransport: TransportPreference.Auto,
             Metadata: null);
 
         _mockRegistry
@@ -148,6 +152,7 @@ public class RegisterAgentHandlerTests
             A2AEndpointUrl: "https://test-agent-004.example.com/a2a",
             Communication: new CommunicationCapabilities(false, true, true), // Does NOT support A2ADirect
             EventsPublished: Array.Empty<string>(),
+            PreferredTransport: TransportPreference.ServiceBus,
             Metadata: null);
 
         _mockRegistry

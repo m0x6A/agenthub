@@ -48,6 +48,7 @@ public sealed class RegisterAgentHandler
             Communication: request.Communication,
             EventSubscriptions: [],
             EventsPublished: request.EventsPublished,
+            PreferredTransport: request.PreferredTransport,
             Metadata: request.Metadata,
             Timestamps: new AgentTimestamps(
                 RegisteredAt: now,

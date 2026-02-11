@@ -4,6 +4,7 @@ using AgentBus.Broker.Modules.Registration;
 using AgentBus.Broker.Modules.Messaging;
 using AgentBus.Broker.Modules.Eventing;
 using AgentBus.Broker.Modules.A2A;
+using AgentBus.Broker.Modules.Communication;
 using Serilog;
 using Serilog.Events;
 
@@ -67,6 +68,7 @@ builder.Services.AddRegistrationModule();
 builder.Services.AddMessagingModule();
 builder.Services.AddEventingModule();
 builder.Services.AddA2AModule();
+builder.Services.AddCommunicationModule();
 
 var app = builder.Build();
 
@@ -94,11 +96,15 @@ app.MapGet("/api/v1/health/ready", () => Results.Ok(new { status = "ready", time
 
 Log.Information("AgentBus.Broker starting up...");
 
+// Initialize communication module
+await app.InitializeCommunicationModuleAsync();
+
 // Map module endpoints
 app.MapRegistrationEndpoints();
 app.MapMessagingEndpoints();
 app.MapEventingEndpoints();
 app.MapA2AEndpoints();
+app.MapCommunicationEndpoints();
 
 app.Run();
 
