@@ -9,5 +9,6 @@ public interface IAgentRegistry
     Task<IEnumerable<Agent>> GetAllAgentsAsync(AgentStatus? status = null, CancellationToken cancellationToken = default);
     Task<Agent> RegisterAgentAsync(Agent agent, CancellationToken cancellationToken = default);
     Task UpdateHeartbeatAsync(string agentId, DateTime heartbeatTime, CancellationToken cancellationToken = default);
+    Task UpdateStatusAsync(string agentId, AgentStatus status, CancellationToken cancellationToken = default);
     Task DeleteAgentAsync(string agentId, CancellationToken cancellationToken = default);
 }

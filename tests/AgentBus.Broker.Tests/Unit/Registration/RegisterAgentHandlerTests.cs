@@ -196,7 +196,13 @@ public sealed class RegisterAgentHandlerTests
         );
 
         _agentRegistry.RegisterAgentAsync(Arg.Any<Agent>(), Arg.Any<CancellationToken>())
+        _agentRegistry.RegisterAgentAsync(Arg.Any<Agent>(), Arg.Any<CancellationToken>())
             .Throws(new InvalidOperationException("Registry unavailable"));
+
+        // Act & Assert
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await _handler.HandleAsync(request, CancellationToken.None));
+    }
 
         // Act & Assert
         await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -218,14 +224,20 @@ public sealed class RegisterAgentHandlerTests
             ),
             Identity: new AgentIdentity(
                 ManagedIdentityId: "/subscriptions/test/resourceGroups/test/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test",
-                PrincipalId: "principal-queue-error",
-                TenantId: "tenant-queue-error"
-            ),
+        _messageBroker.CreateInboxQueueAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Throws(new InvalidOperationException("Queue creation failed"));
+
+        // Act & Assert
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await _handler.HandleAsync(request, CancellationToken.None));
+    }
             Metadata: null
         );
 
         _messageBroker.CreateInboxQueueAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Throws(new InvalidOperationException("Queue creation failed"));
+            ;
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await _handler.HandleAsync(request, CancellationToken.None));
 
         // Act & Assert
         await Should.ThrowAsync<InvalidOperationException>(async () =>

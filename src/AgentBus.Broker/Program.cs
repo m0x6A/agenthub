@@ -1,5 +1,6 @@
 using AgentBus.Broker.SharedKernel.Security;
 using AgentBus.Broker.SharedKernel.Telemetry;
+using AgentBus.Broker.Modules.Registration;
 using Serilog;
 using Serilog.Events;
 
@@ -58,6 +59,9 @@ builder.Services.AddSingleton(sp =>
     return new Azure.Messaging.ServiceBus.ServiceBusClient(connectionString);
 });
 
+// Add modules
+builder.Services.AddRegistrationModule();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
@@ -83,6 +87,9 @@ app.MapGet("/api/v1/health/ready", () => Results.Ok(new { status = "ready", time
     .AllowAnonymous();
 
 Log.Information("AgentBus.Broker starting up...");
+
+// Map module endpoints
+app.MapRegistrationEndpoints();
 
 app.Run();
 

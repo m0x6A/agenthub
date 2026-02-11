@@ -4,29 +4,30 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Reqnroll;
 using Shouldly;
+using Xunit;
 using AgentBus.Broker.SharedKernel.Models;
 
 namespace AgentBus.Broker.Tests.StepDefinitions;
 
 [Binding]
-public sealed class RegistrationSteps : IClassFixture<WebApplicationFactory<Program>>
+public sealed class RegistrationSteps
 {
-    private readonly WebApplicationFactory<Program> _factory;
     private readonly ScenarioContext _scenarioContext;
+    private WebApplicationFactory<Program>? _factory;
     private HttpClient _client = null!;
     private HttpResponseMessage _response = null!;
     private Dictionary<string, string> _agentDetails = new();
     private List<Agent> _registeredAgents = new();
 
-    public RegistrationSteps(WebApplicationFactory<Program> factory, ScenarioContext scenarioContext)
+    public RegistrationSteps(ScenarioContext scenarioContext)
     {
-        _factory = factory;
         _scenarioContext = scenarioContext;
     }
 
     [Given(@"the AgentBus broker is running")]
     public void GivenTheAgentBusBrokerIsRunning()
     {
+        _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
     }
 

@@ -33,7 +33,7 @@ public sealed class DeregisterAgentHandlerTests
         _agentRegistry.GetAgentByIdAsync(agentId, Arg.Any<CancellationToken>())
             .Returns(agent);
 
-        _agentRegistry.DeregisterAgentAsync(agentId, Arg.Any<CancellationToken>())
+        _agentRegistry.DeleteAgentAsync(agentId, Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
         _messageBroker.DeleteInboxQueueAsync(agent.Endpoints.InboxQueueName, Arg.Any<CancellationToken>())
@@ -48,11 +48,11 @@ public sealed class DeregisterAgentHandlerTests
         await _handler.HandleAsync(request, CancellationToken.None);
 
         // Assert
-        await _agentRegistry.Received(1).DeregisterAgentAsync(agentId, Arg.Any<CancellationToken>());
+        await _agentRegistry.Received(1).DeleteAgentAsync(agentId, Arg.Any<CancellationToken>("); return Task.CompletedTask; })
         await _messageBroker.Received(1).DeleteInboxQueueAsync(
             agent.Endpoints.InboxQueueName, 
-            Arg.Any<CancellationToken>());
-        await _eventBroker.Received(1).DeleteAllSubscriptionsAsync(agentId, Arg.Any<CancellationToken>());
+            Arg.Any<CancellationToken>("); return Task.CompletedTask; })
+        await _eventBroker.Received(1).DeleteAllSubscriptionsAsync(agentId, Arg.Any<CancellationToken>("); return Task.CompletedTask; })
     }
 
     [Fact]
@@ -68,10 +68,10 @@ public sealed class DeregisterAgentHandlerTests
 
         // Act & Assert
         await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await _handler.HandleAsync(request, CancellationToken.None));
+            await _handler.HandleAsync(request, CancellationToken.None"); return Task.CompletedTask; })
 
-        await _agentRegistry.DidNotReceive().DeregisterAgentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
-        await _messageBroker.DidNotReceive().DeleteInboxQueueAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _agentRegistry.DidNotReceive().DeleteAgentAsync(Arg.Any<string>(), Arg.Any<CancellationToken>("); return Task.CompletedTask; })
+        await _messageBroker.DidNotReceive().DeleteInboxQueueAsync(Arg.Any<string>(), Arg.Any<CancellationToken>("); return Task.CompletedTask; })
     }
 
     [Fact]
@@ -84,16 +84,18 @@ public sealed class DeregisterAgentHandlerTests
         _agentRegistry.GetAgentByIdAsync(agentId, Arg.Any<CancellationToken>())
             .Returns(agent);
 
-        _agentRegistry.DeregisterAgentAsync(agentId, Arg.Any<CancellationToken>())
-            .Throws(new InvalidOperationException("Registry deletion failed"));
+        _agentRegistry.DeleteAgentAsync(agentId, Arg.Any<CancellationToken>())
+            ;
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await _handler.HandleAsync(request, CancellationToken.None"); return Task.CompletedTask; })
 
         var request = new DeregisterAgentRequest(AgentId: agentId);
 
         // Act & Assert
         await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await _handler.HandleAsync(request, CancellationToken.None));
+            await _handler.HandleAsync(request, CancellationToken.None"); return Task.CompletedTask; })
 
-        await _messageBroker.DidNotReceive().DeleteInboxQueueAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _messageBroker.DidNotReceive().DeleteInboxQueueAsync(Arg.Any<string>(), Arg.Any<CancellationToken>("); return Task.CompletedTask; })
     }
 
     [Fact]
@@ -106,17 +108,19 @@ public sealed class DeregisterAgentHandlerTests
         _agentRegistry.GetAgentByIdAsync(agentId, Arg.Any<CancellationToken>())
             .Returns(agent);
 
-        _agentRegistry.DeregisterAgentAsync(agentId, Arg.Any<CancellationToken>())
+        _agentRegistry.DeleteAgentAsync(agentId, Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
         _messageBroker.DeleteInboxQueueAsync(agent.Endpoints.InboxQueueName, Arg.Any<CancellationToken>())
-            .Throws(new InvalidOperationException("Queue deletion failed"));
+            ;
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await _handler.HandleAsync(request, CancellationToken.None"); return Task.CompletedTask; })
 
         var request = new DeregisterAgentRequest(AgentId: agentId);
 
         // Act & Assert
         await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await _handler.HandleAsync(request, CancellationToken.None));
+            await _handler.HandleAsync(request, CancellationToken.None"); return Task.CompletedTask; })
     }
 
     [Fact]
@@ -132,7 +136,7 @@ public sealed class DeregisterAgentHandlerTests
         var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        _agentRegistry.DeregisterAgentAsync(agentId, Arg.Any<CancellationToken>())
+        _agentRegistry.DeleteAgentAsync(agentId, Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
                 var token = callInfo.Arg<CancellationToken>();
@@ -144,7 +148,7 @@ public sealed class DeregisterAgentHandlerTests
 
         // Act & Assert
         await Should.ThrowAsync<OperationCanceledException>(async () =>
-            await _handler.HandleAsync(request, cts.Token));
+            await _handler.HandleAsync(request, cts.Token"); return Task.CompletedTask; })
     }
 
     [Fact]
@@ -158,14 +162,14 @@ public sealed class DeregisterAgentHandlerTests
         _agentRegistry.GetAgentByIdAsync(agentId, Arg.Any<CancellationToken>())
             .Returns(agent);
 
-        _agentRegistry.DeregisterAgentAsync(agentId, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(callOrder.Add("deregister")));
+        _agentRegistry.DeleteAgentAsync(agentId, Arg.Any<CancellationToken>())
+            .Returns(callInfo => { callOrder.Add("deregister")"); return Task.CompletedTask; })
 
         _eventBroker.DeleteAllSubscriptionsAsync(agentId, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(callOrder.Add("subscriptions")));
+            .Returns(Task.FromResult(callOrder.Add("subscriptions")"); return Task.CompletedTask; })
 
         _messageBroker.DeleteInboxQueueAsync(agent.Endpoints.InboxQueueName, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(callOrder.Add("queue")));
+            .Returns(Task.FromResult(callOrder.Add("queue")"); return Task.CompletedTask; })
 
         var request = new DeregisterAgentRequest(AgentId: agentId);
 

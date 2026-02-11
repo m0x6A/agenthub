@@ -30,8 +30,8 @@ public sealed class DiscoverAgentsHandlerTests
             CreateAgent("agent-3", "Agent 3", AgentStatus.Inactive)
         };
 
-        _agentRegistry.FindAgentsAsync(null, null, Arg.Any<CancellationToken>())
-            .Returns(agents.Where(a => a.Status == AgentStatus.Active).ToArray());
+        _agentRegistry.GetAllAgentsAsync(null, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IEnumerable<Agent>>(agents.Where(a => a.Status == AgentStatus.Active).ToArray()));
 
         var request = new DiscoverAgentsRequest(Capability: null, Status: null);
 
@@ -57,7 +57,7 @@ public sealed class DiscoverAgentsHandlerTests
         };
 
         _agentRegistry.FindAgentsByCapabilityAsync("schedule-drone", Arg.Any<CancellationToken>())
-            .Returns(agents.Where(a => a.Capabilities.Contains("schedule-drone")).ToArray());
+            .Returns(Task.FromResult<IEnumerable<Agent>>(agents.Where(a => a.Capabilities.Contains("schedule-drone")).ToArray()));
 
         var request = new DiscoverAgentsRequest(Capability: "schedule-drone", Status: null);
 
@@ -83,8 +83,8 @@ public sealed class DiscoverAgentsHandlerTests
             CreateAgent("agent-3", "Agent 3", AgentStatus.Active)
         };
 
-        _agentRegistry.FindAgentsAsync(null, AgentStatus.Active, Arg.Any<CancellationToken>())
-            .Returns(agents.Where(a => a.Status == AgentStatus.Active).ToArray());
+        _agentRegistry.GetAllAgentsAsync(AgentStatus.Active, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IEnumerable<Agent>>(agents.Where(a => a.Status == AgentStatus.Active).ToArray()));
 
         var request = new DiscoverAgentsRequest(Capability: null, Status: AgentStatus.Active);
 
@@ -101,7 +101,7 @@ public sealed class DiscoverAgentsHandlerTests
     {
         // Arrange
         _agentRegistry.FindAgentsByCapabilityAsync("non-existent-capability", Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<Agent>());
+            .Returns(Task.FromResult<IEnumerable<Agent>>(Array.Empty<Agent>()));
 
         var request = new DiscoverAgentsRequest(Capability: "non-existent-capability", Status: null);
 
@@ -121,7 +121,7 @@ public sealed class DiscoverAgentsHandlerTests
         var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        _agentRegistry.FindAgentsAsync(null, null, Arg.Any<CancellationToken>())
+        _agentRegistry.GetAllAgentsAsync(null, Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
                 var token = callInfo.Arg<CancellationToken>();

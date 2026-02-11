@@ -8,4 +8,5 @@ public interface IEventBroker
     Task<Subscription> SubscribeAsync(string agentId, string eventType, string[]? filters = null, CancellationToken cancellationToken = default);
     Task<EventEnvelope?> ReceiveEventAsync(string subscriptionId, int maxWaitTimeSeconds = 30, CancellationToken cancellationToken = default);
     Task UnsubscribeAsync(string subscriptionId, CancellationToken cancellationToken = default);
+    Task DeleteAllSubscriptionsAsync(string agentId, CancellationToken cancellationToken = default);
 }
