@@ -116,8 +116,13 @@
 - [ ] T061 [P] [US1] Add OpenTelemetry Activity.Current?.AddTag for agentId, capability in handlers
 - [ ] T062 [P] [US1] Add structured logging with Serilog in handlers using correlation IDs
 - [ ] T063 [US1] Run dotnet test — verify all tests still PASS
+- [ ] T063a [US1] Create SharedKernel/BackgroundServices/HeartbeatMonitorService.cs implementing IHostedService with timer checking every 1 minute
+- [ ] T063b [P] [US1] Write unit tests for HeartbeatMonitorService in tests/AgentBus.Broker.Tests/Unit/BackgroundServices/HeartbeatMonitorServiceTests.cs verifying 5-minute threshold and status transition logic
+- [ ] T063c [US1] Implement HeartbeatMonitorService: query agents with lastHeartbeat > 5 minutes ago, update status to "inactive" via Cosmos DB patch
+- [ ] T063d [US1] Register HeartbeatMonitorService in Program.cs via builder.Services.AddHostedService<HeartbeatMonitorService>()
+- [ ] T063e [US1] Write integration test verifying agent transitions to "inactive" after 5 minutes of no heartbeats (time-accelerated test)
 
-**Checkpoint**: User Story 1 complete (RED → GREEN → REFACTOR cycle finished), agents can register and discover each other
+**Checkpoint**: User Story 1 complete, agents can register, discover, heartbeat, and deregister. Background service enforces heartbeat timeout (FR-015, SC-010).
 
 ---
 
@@ -244,7 +249,7 @@
 - [ ] T132 [P] [US4] Create infra/main.bicep with subscription-scoped deployment targeting resource group creation
 - [ ] T133 [P] [US4] Create infra/modules/identity.bicep with User-Assigned Managed Identity for Broker API and sample agent
 - [ ] T134 [P] [US4] Create infra/modules/cosmosDb.bicep with serverless account, database, agents container, subscriptions container per data-model.md
-- [ ] T135 [P] [US4] Create infra/modules/serviceBus.bicep with Standard namespace, RBAC role assignments to Managed Identities
+- [ ] T135 [P] [US4] Create infra/modules/serviceBus.bicep with Standard namespace, RBAC role assignments to Managed Identities, DLQ configuration (maxDeliveryCount: 10, enableDeadLetteringOnMessageExpiration: true) for all queues/subscriptions
 - [ ] T136 [P] [US4] Create infra/modules/containerRegistry.bicep with Basic SKU, admin disabled, Managed Identity pull access
 - [ ] T137 [P] [US4] Create infra/modules/monitoring.bicep with Log Analytics workspace, Application Insights component
 - [ ] T138 [US4] Create infra/modules/containerApps.bicep with Consumption environment, Broker API container app, health probes, ingress configuration
@@ -327,9 +332,16 @@
 - [ ] T181 Verify all BDD scenarios pass end-to-end with dotnet test
 - [ ] T182 Run code coverage report with dotnet test /p:CollectCoverage=true — ensure handlers have 100% coverage
 - [ ] T183 [P] Code cleanup: remove unused using statements, run dotnet format
-- [ ] T184 [P] Security audit: verify zero secrets in codebase, scan for hardcoded credentials
-- [ ] T185 Performance test: register 10 agents, send 100 messages, verify P95 latency < 1s
-- [ ] T186 Run quickstart.md validation end-to-end from clean Azure subscription
+- [ ] T184 [P] Security audit: verify zero secrets in codebase, scan for hardcoded credentials (validates SC-006)
+- [ ] T185 Performance test: register 10 agents, send 100 messages, verify P95 latency < 1s (validates SC-001, SC-005)
+- [ ] T186 Run quickstart.md validation end-to-end from clean Azure subscription (validates SC-003)
+- [ ] T186a [P] Validate cost optimization: check Azure cost analysis after 24h runtime, verify < $50/month projected cost (validates SC-012)
+- [ ] T186b [P] Validate observability: execute full agent workflow, query Application Insights for traces with correct correlation (validates SC-004)
+- [ ] T186c [P] Validate health checks: verify /health and /health/ready endpoints return 200 OK with all dependencies healthy (validates SC-007)
+- [ ] T186d [P] Validate security: send requests with invalid JWT, verify 401 Unauthorized before reaching app code (validates SC-008)
+- [ ] T186e [P] Validate DLQ alerting: force message to DLQ, verify alert triggers within 1 minute (validates SC-009)
+- [ ] T186f [P] Validate heartbeat timeout: stop agent heartbeats, verify status transitions to inactive within 5 minutes (validates SC-010, FR-015)
+- [ ] T186g Validate BDD test suite: run all .feature scenarios, verify 100% pass rate (validates SC-011)
 - [ ] T187 [P] Create scripts/setup-local-dev.sh for local development environment setup
 - [ ] T188 Tag release v1.0.0-mvp and create GitHub release notes
 
@@ -513,8 +525,8 @@ Each version is independently deployable and backward compatible with previous v
 
 ## Summary
 
-- **Total Tasks**: 188 tasks across 8 phases
-- **MVP Scope**: Phase 1 + Phase 2 + Phase 3 (User Story 1 only) = ~63 tasks
+- **Total Tasks**: 193 tasks across 8 phases
+- **MVP Scope**: Phase 1 + Phase 2 + Phase 3 (User Story 1 only) = ~68 tasks
 - **Estimated Effort**: 
   - MVP (US1 only): 5-7 days
   - Full MVP (US1-US5): 4-5 weeks
