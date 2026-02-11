@@ -4,68 +4,44 @@ using System.Collections.Concurrent;
 namespace AgentBus.Examples.LogisticsUI;
 
 /// <summary>
-/// Service that tracks and simulates agent communication for demonstration
+/// Service that stores and provides access to real agent events for the UI
 /// </summary>
 public class AgentCommunicationService
 {
-    private readonly ConcurrentQueue<AgentMessage> _messageQueue = new();
-    private readonly ConcurrentDictionary<string, string> _activeConversations = new();
+    private readonly ConcurrentQueue<AgentEvent> _eventQueue = new();
+    private const int MaxEvents = 500; // Keep last 500 events
 
-    public AgentCommunicationService()
+    public record AgentEvent(
+        string EventId,
+        string EventType,
+        string Source,
+        string Data,
+        DateTime Timestamp);
+
+    public void LogEvent(string eventType, string source, string data, DateTime timestamp)
     {
-    }
+        var evt = new AgentEvent(
+            EventId: Guid.NewGuid().ToString(),
+            EventType: eventType,
+            Source: source,
+            Data: data,
+            Timestamp: timestamp);
 
-    public record AgentMessage(
-        string MessageId,
-        string From,
-        string To,
-        string Message,
-        DateTime Timestamp,
-        string Type); // "SENT", "RECEIVED", "ANALYSIS", "DECISION"
-
-    public void LogMessage(string from, string to, string message, string type = "SENT")
-    {
-        var msg = new AgentMessage(
-            MessageId: Guid.NewGuid().ToString(),
-            From: from,
-            To: to,
-            Message: message,
-            Timestamp: DateTime.UtcNow,
-            Type: type);
-
-        _messageQueue.Enqueue(msg);
-        Log.Information($"📨 {from} → {to} [{type}]: {message}");
-    }
-
-    public List<AgentMessage> GetMessages(int count = 100)
-    {
-        return _messageQueue.TakeLast(count).ToList();
-    }
-
-    public IEnumerable<AgentMessage> GetMessagesAsStream()
-    {
-        var processed = 0;
-        while (processed < _messageQueue.Count)
+        _eventQueue.Enqueue(evt);
+        
+        // Keep only last MaxEvents
+        while (_eventQueue.Count > MaxEvents)
         {
-            var messages = _messageQueue.TakeLast(_messageQueue.Count - processed).ToList();
-            foreach (var msg in messages)
-            {
-                yield return msg;
-            }
-            processed = _messageQueue.Count;
-            Thread.Sleep(100);
+            _eventQueue.TryDequeue(out _);
         }
+
+        Log.Information("📨 Event stored: {EventType} from {Source}", eventType, source);
     }
 
-    public void StartConversation(string conversationId)
+    public List<AgentEvent> GetEvents(int count = 100)
     {
-        _activeConversations.TryAdd(conversationId, DateTime.UtcNow.ToString());
+        return _eventQueue.TakeLast(count).ToList();
     }
 
-    public void EndConversation(string conversationId)
-    {
-        _activeConversations.TryRemove(conversationId, out _);
-    }
-
-    public Dictionary<string, string> GetActiveConversations() => new(_activeConversations);
+    public int GetEventCount() => _eventQueue.Count;
 }

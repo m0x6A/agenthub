@@ -27,15 +27,36 @@ public class HttpAgentBusClient : IAgentBusClient
 
     public async Task RegisterAgentAsync(AgentRegistration registration)
     {
-        var content = new StringContent(
-            JsonSerializer.Serialize(registration, _jsonOptions),
-            Encoding.UTF8,
-            "application/json");
-
-        var response = await _httpClient.PostAsync("/api/agents/register", content);
-        response.EnsureSuccessStatusCode();
+        const int maxRetries = 10;
+        var retryDelay = TimeSpan.FromSeconds(2);
         
-        Log.Information("[HTTP] Agent registered: {AgentId}", registration.Id);
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                var content = new StringContent(
+                    JsonSerializer.Serialize(registration, _jsonOptions),
+                    Encoding.UTF8,
+                    "application/json");
+
+                var response = await _httpClient.PostAsync("/api/agents/register", content);
+                response.EnsureSuccessStatusCode();
+                
+                Log.Information("[HTTP] Agent registered: {AgentId}", registration.Id);
+                return; // Success!
+            }
+            catch (HttpRequestException ex) when (attempt < maxRetries)
+            {
+                Log.Warning(ex, 
+                    "Failed to register agent (attempt {Attempt}/{MaxRetries}). Broker may still be starting. Retrying in {Delay}s...",
+                    attempt, maxRetries, retryDelay.TotalSeconds);
+                await Task.Delay(retryDelay);
+                retryDelay = TimeSpan.FromSeconds(retryDelay.TotalSeconds * 1.5); // Exponential backoff
+            }
+        }
+        
+        // If we get here, all retries failed
+        throw new InvalidOperationException($"Failed to register agent after {maxRetries} attempts. Is the broker running?");
     }
 
     public async Task<Subscription> SubscribeToAllEventsAsync()

@@ -100,6 +100,9 @@ app.MapGet("/api/v1/health/ready", () => Results.Ok(new { status = "ready", time
 
 Log.Information("AgentBus.Broker starting up...");
 
+// Initialize Cosmos DB database and containers
+await InitializeCosmosDbAsync(app.Services, app.Configuration);
+
 // Initialize communication module
 await app.InitializeCommunicationModuleAsync();
 
@@ -114,6 +117,74 @@ app.Run();
 
 Log.Information("AgentBus.Broker shut down complete");
 Log.CloseAndFlush();
+
+// Initialize Cosmos DB database and containers
+static async Task InitializeCosmosDbAsync(IServiceProvider services, IConfiguration configuration)
+{
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    var cosmosClient = services.GetRequiredService<Microsoft.Azure.Cosmos.CosmosClient>();
+    
+    var databaseName = configuration["CosmosDb:DatabaseName"] ?? "agentbus";
+    var agentsContainerName = configuration["CosmosDb:AgentsContainerName"] ?? "agents";
+    var subscriptionsContainerName = configuration["CosmosDb:SubscriptionsContainerName"] ?? "subscriptions";
+    
+    const int maxRetries = 10;
+    var retryDelay = TimeSpan.FromSeconds(2);
+    
+    for (int attempt = 1; attempt <= maxRetries; attempt++)
+    {
+        try
+        {
+            logger.LogInformation("Initializing Cosmos DB database '{Database}' (attempt {Attempt}/{MaxRetries})...", 
+                databaseName, attempt, maxRetries);
+            
+            // Create database if it doesn't exist
+            var databaseResponse = await cosmosClient.CreateDatabaseIfNotExistsAsync(databaseName);
+            var database = databaseResponse.Database;
+            
+            logger.LogInformation("Database '{Database}' ready (Status: {StatusCode})", 
+                databaseName, databaseResponse.StatusCode);
+            
+            // Create agents container if it doesn't exist
+            var agentsContainerProperties = new Microsoft.Azure.Cosmos.ContainerProperties
+            {
+                Id = agentsContainerName,
+                PartitionKeyPath = "/id"
+            };
+            
+            var agentsResponse = await database.CreateContainerIfNotExistsAsync(agentsContainerProperties);
+            logger.LogInformation("Container '{Container}' ready (Status: {StatusCode})", 
+                agentsContainerName, agentsResponse.StatusCode);
+            
+            // Create subscriptions container if it doesn't exist
+            var subscriptionsContainerProperties = new Microsoft.Azure.Cosmos.ContainerProperties
+            {
+                Id = subscriptionsContainerName,
+                PartitionKeyPath = "/agentId"
+            };
+            
+            var subscriptionsResponse = await database.CreateContainerIfNotExistsAsync(subscriptionsContainerProperties);
+            logger.LogInformation("Container '{Container}' ready (Status: {StatusCode})", 
+                subscriptionsContainerName, subscriptionsResponse.StatusCode);
+            
+            logger.LogInformation("✅ Cosmos DB initialization complete");
+            return; // Success!
+        }
+        catch (Exception ex) when (attempt < maxRetries)
+        {
+            logger.LogWarning(ex, 
+                "Failed to initialize Cosmos DB (attempt {Attempt}/{MaxRetries}). Retrying in {Delay}s...", 
+                attempt, maxRetries, retryDelay.TotalSeconds);
+            await Task.Delay(retryDelay);
+            retryDelay = TimeSpan.FromSeconds(retryDelay.TotalSeconds * 1.5); // Exponential backoff
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "❌ Failed to initialize Cosmos DB after {MaxRetries} attempts. Broker cannot start.", maxRetries);
+            throw;
+        }
+    }
+}
 
 // Make Program class visible for WebApplicationFactory in tests
 public partial class Program { }

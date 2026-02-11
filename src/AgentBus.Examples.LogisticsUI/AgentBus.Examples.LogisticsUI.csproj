@@ -14,8 +14,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\examples\AgentBus.Examples.Shared\AgentBus.Examples.Shared.csproj" />
-    <ProjectReference Include="..\..\examples\AgentBus.Examples.LogisticsCoordination\AgentBus.Examples.LogisticsCoordination.csproj" />
-    <ProjectReference Include="..\AgentHub.ServiceDefaults\AgentHub.ServiceDefaults.csproj" />
   </ItemGroup>
 
 </Project>

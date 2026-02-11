@@ -42,6 +42,10 @@
             font-size: 14px;
         }
 
+        header strong {
+            color: #667eea;
+        }
+
         .main-content {
             display: grid;
             grid-template-columns: 1fr 2fr;
@@ -273,7 +277,7 @@
     <div class="container">
         <header>
             <h1>🚀 Agent Communication Dashboard</h1>
-            <p>Demonstrating autonomous agent collaboration for logistics coordination</p>
+            <p><strong>LIVE</strong> - Showing real events from autonomous agents via AgentBus Broker</p>
         </header>
 
         <div class="main-content">
@@ -299,79 +303,98 @@
                 <div class="messages-header">
                     <span>
                         <span class="status-indicator active"></span>
-                        Live Agent Communication
+                        Live Events from Agents
                     </span>
                     <button onclick="clearMessages()">Clear</button>
                 </div>
                 <div class="messages-body" id="messagesBody">
                     <div class="empty-state">
-                        👈 Select a scenario to start
+                        Connecting to broker...
                     </div>
                 </div>
             </div>
         </div>
 
         <footer>
-            Connected to AgentBus Broker • Real-time autonomous agent collaboration demo
+            🔴 LIVE Connected to AgentBus Broker • Real-time events from Shipping Agent & Warehouse Lead Agent
         </footer>
     </div>
 
     <script>
+        let eventSource = null;
+
         async function triggerScenario(endpoint, button) {
             button.classList.add("loading");
             button.disabled = true;
 
             try {
-                document.getElementById("messagesBody").innerHTML = '';
-                
                 const response = await fetch(endpoint, { method: 'POST' });
                 const data = await response.json();
 
-                // Display the messages from the response
-                if (data.messages) {
-                    displayMessages(data.messages);
-                }
+                showInfo(`✅ ${data.message}`);
             } catch (error) {
                 console.error('Error:', error);
-                showError('Failed to run scenario: ' + error.message);
+                showError('Failed to trigger scenario: ' + error.message);
             } finally {
                 button.classList.remove("loading");
                 button.disabled = false;
             }
         }
 
-        function displayMessages(messages) {
+        function displayEvents(events) {
             const container = document.getElementById("messagesBody");
             container.innerHTML = '';
 
-            if (!messages || messages.length === 0) {
-                container.innerHTML = '<div class="empty-state">No messages yet</div>';
+            if (!events || events.length === 0) {
+                container.innerHTML = '<div class="empty-state">No events yet - trigger a scenario!</div>';
                 return;
             }
 
-            messages.forEach(msg => {
-                const div = document.createElement('div');
-                div.className = `message ${msg.type.toLowerCase()}`;
-                
-                const time = new Date(msg.timestamp).toLocaleTimeString();
-                div.innerHTML = `
-                    <div class="message-header">
-                        <span class="message-from">${msg.from}</span> → <span class="message-to">${msg.to}</span>
-                        <span style="float: right; font-weight: normal; color: #999;">${msg.type}</span>
-                    </div>
-                    <div class="message-text">${escapeHtml(msg.message)}</div>
-                    <div class="message-time">${time}</div>
-                `;
-                
-                container.appendChild(div);
+            events.forEach(evt => {
+                addEventToDisplay(evt);
             });
 
             // Scroll to bottom
             container.scrollTop = container.scrollHeight;
         }
 
+        function addEventToDisplay(evt) {
+            const container = document.getElementById("messagesBody");
+            
+            const div = document.createElement('div');
+            div.className = 'message';
+            
+            const time = new Date(evt.timestamp).toLocaleTimeString();
+            
+            // Parse data if it's JSON
+            let dataDisplay = evt.data;
+            try {
+                const parsed = JSON.parse(evt.data);
+                dataDisplay = JSON.stringify(parsed, null, 2);
+            } catch (e) {
+                // Not JSON, use as-is
+            }
+
+            div.innerHTML = `
+                <div class="message-header">
+                    <span class="message-from">📡 ${evt.eventType}</span>
+                    <span style="float: right; font-weight: normal; color: #999;">${time}</span>
+                </div>
+                <div class="message-text">
+                    <strong>Source:</strong> ${escapeHtml(evt.source)}<br>
+                    <strong>Data:</strong><br>
+                    <pre style="margin-top: 8px; font-size: 11px; background: #f5f5f5; padding: 8px; border-radius: 4px; overflow-x: auto;">${escapeHtml(dataDisplay)}</pre>
+                </div>
+            `;
+            
+            container.appendChild(div);
+            
+            // Auto-scroll
+            container.scrollTop = container.scrollHeight;
+        }
+
         async function clearMessages() {
-            document.getElementById("messagesBody").innerHTML = '';
+            const response = await fetch('/api/events/clear', { method: 'POST' });
             document.getElementById("messagesBody").innerHTML = '<div class="empty-state">👈 Select a scenario to start</div>';
         }
 
@@ -388,6 +411,22 @@
             container.appendChild(div);
         }
 
+        function showInfo(message) {
+            const container = document.getElementById("messagesBody");
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.style.borderLeftColor = '#2196F3';
+            div.style.background = '#E3F2FD';
+            div.innerHTML = `
+                <div class="message-header" style="color: #2196F3;">ℹ️ Info</div>
+                <div class="message-text">${escapeHtml(message)}</div>
+            `;
+            container.appendChild(div);
+            
+            // Auto-scroll
+            container.scrollTop = container.scrollHeight;
+        }
+
         function escapeHtml(text) {
             const map = {
                 '&': '&amp;',
@@ -399,16 +438,57 @@
             return text.replace(/[&<>"']/g, m => map[m]);
         }
 
-        // Load initial messages on page load
-        window.addEventListener('load', () => {
-            fetch('/api/messages')
-                .then(r => r.json())
-                .then(data => {
-                    if (data.messages.length > 0) {
-                        displayMessages(data.messages);
-                    }
-                })
-                .catch(e => console.error('Failed to load messages:', e));
+        // Connect to event stream
+        function connectEventStream() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            eventSource = new EventSource('/api/events/stream');
+            
+            eventSource.onmessage = (event) => {
+                try {
+                    const evt = JSON.parse(event.data);
+                    addEventToDisplay(evt);
+                } catch (e) {
+                    console.error('Failed to parse event:', e);
+                }
+            };
+
+            eventSource.onerror = (error) => {
+                console.error('EventSource error:', error);
+                eventSource.close();
+                
+                // Retry connection after 5 seconds
+                setTimeout(connectEventStream, 5000);
+            };
+        }
+
+        // Load initial events and connect to stream on page load
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch('/api/events');
+                const data = await response.json();
+                
+                if (data.events && data.events.length > 0) {
+                    displayEvents(data.events);
+                } else {
+                    showInfo('Connected to broker. Listening for events...');
+                }
+                
+                // Connect to live event stream
+                connectEventStream();
+            } catch (e) {
+                console.error('Failed to load events:', e);
+                showError('Failed to connect to broker: ' + e.message);
+            }
+        });
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (eventSource) {
+                eventSource.close();
+            }
         });
     </script>
 </body>

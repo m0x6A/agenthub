@@ -40,17 +40,37 @@ public static class CommunicationModule
         
         var replyQueueName = configuration["ServiceBus:ReplyQueueName"] ?? "agent-replies";
         
-        try
+        const int maxRetries = 10;
+        var retryDelay = TimeSpan.FromSeconds(2);
+        
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
-            var sender = serviceBusClient.CreateSender(replyQueueName);
-            await sender.DisposeAsync(); // Just testing connection
-            logger.LogInformation("Reply queue '{QueueName}' is available", replyQueueName);
-        }
-        catch
-        {
-            logger.LogWarning(
-                "Reply queue '{QueueName}' may not exist. Create it manually or ensure Service Bus has auto-create permissions.",
-                replyQueueName);
+            try
+            {
+                logger.LogInformation("Verifying Service Bus reply queue '{QueueName}' (attempt {Attempt}/{MaxRetries})...", 
+                    replyQueueName, attempt, maxRetries);
+                    
+                var sender = serviceBusClient.CreateSender(replyQueueName);
+                await sender.DisposeAsync(); // Just testing connection
+                logger.LogInformation("✅ Reply queue '{QueueName}' is available", replyQueueName);
+                return app; // Success!
+            }
+            catch (Exception ex) when (attempt < maxRetries)
+            {
+                logger.LogWarning(ex,
+                    "Failed to connect to Service Bus (attempt {Attempt}/{MaxRetries}). Retrying in {Delay}s...",
+                    attempt, maxRetries, retryDelay.TotalSeconds);
+                await Task.Delay(retryDelay);
+                retryDelay = TimeSpan.FromSeconds(retryDelay.TotalSeconds * 1.5); // Exponential backoff
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "❌ Failed to connect to Service Bus after {MaxRetries} attempts. Reply queue '{QueueName}' may not exist. Create it manually or ensure Service Bus has auto-create permissions.",
+                    maxRetries, replyQueueName);
+                // Don't throw - allow startup to continue, queue will be created on first use if admin permissions available
+                return app;
+            }
         }
 
         return app;
