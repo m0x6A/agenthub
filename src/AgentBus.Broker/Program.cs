@@ -1,6 +1,8 @@
 using AgentBus.Broker.SharedKernel.Security;
 using AgentBus.Broker.SharedKernel.Telemetry;
 using AgentBus.Broker.Modules.Registration;
+using AgentBus.Broker.Modules.Messaging;
+using AgentBus.Broker.Modules.Eventing;
 using Serilog;
 using Serilog.Events;
 
@@ -61,6 +63,8 @@ builder.Services.AddSingleton(sp =>
 
 // Add modules
 builder.Services.AddRegistrationModule();
+builder.Services.AddMessagingModule();
+builder.Services.AddEventingModule();
 
 var app = builder.Build();
 
@@ -90,6 +94,8 @@ Log.Information("AgentBus.Broker starting up...");
 
 // Map module endpoints
 app.MapRegistrationEndpoints();
+app.MapMessagingEndpoints();
+app.MapEventingEndpoints();
 
 app.Run();
 
