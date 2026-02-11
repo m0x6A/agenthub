@@ -49,26 +49,24 @@ try
     Log.Information("📡 Transport: HTTP REST API");
     Log.Information("💡 Set OPENAI_API_KEY for real LLM reasoning\n");
 
-    // Simulate a customer inquiry
-    _ = Task.Run(async () =>
-    {
-        await Task.Delay(2000);
-        Console.WriteLine("📬 SIMULATING CUSTOMER INQUIRY");
-        Console.WriteLine(new string('─', 100));
-        await agentBus.PublishEventAsync("customer.inquiry.received", new
-        {
-            customerId = "CUST-001",
-            orderId = "ORD-2024-001",
-            message = "I need to check my order status urgently",
-            sentiment = "concerned"
-        });
-    });
-
     // Event processing loop
     var cts = new CancellationTokenSource();
     Console.CancelKeyPress += (s, e) => { e.Cancel = true; cts.Cancel(); };
 
     Log.Information("👂 Listening for events... (Ctrl+C to stop)\n");
+
+    // Keep-alive heartbeat
+    _ = Task.Run(async () =>
+    {
+        while (!cts.Token.IsCancellationRequested)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30), cts.Token);
+            if (!cts.Token.IsCancellationRequested)
+            {
+                Log.Information("💓 Agent alive and listening...");
+            }
+        }
+    });
 
     while (!cts.Token.IsCancellationRequested)
     {
@@ -79,7 +77,10 @@ try
                 maxWaitSeconds: 30, 
                 cts.Token);
             
-            if (eventEnvelope == null) continue;
+            if (eventEnvelope == null)
+            {
+                continue;
+            }
 
             Console.WriteLine(new string('═', 100));
             

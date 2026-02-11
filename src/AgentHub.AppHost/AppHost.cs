@@ -59,6 +59,25 @@ var commsAgent = builder.AddProject<Projects.AgentBus_Examples_InternalComms>("i
     .WithEnvironment("AGENTBUS_URL", broker.GetEndpoint("http"));
 Console.WriteLine("✅ Added Internal Communications Agent");
 
+// Logistics Coordination Agents - Two agents that collaborate
+Console.WriteLine("📦 Adding Logistics Coordination Agents...");
+
+// Shipping Agent - Initiates logistics requests
+var shippingAgent = builder.AddProject<Projects.AgentBus_Examples_LogisticsCoordination>("shipping-agent")
+    .WithReference(broker)
+    .WithReference(openai)
+    .WithEnvironment("AGENTBUS_URL", broker.GetEndpoint("http"))
+    .WithEnvironment("AGENT_MODE", "ShippingAgent");
+Console.WriteLine("✅ Added Shipping Agent");
+
+// Warehouse Lead Agent - Responds to logistics coordination requests
+var warehouseAgent = builder.AddProject<Projects.AgentBus_Examples_LogisticsCoordination>("warehouse-lead-agent")
+    .WithReference(broker)
+    .WithReference(openai)
+    .WithEnvironment("AGENTBUS_URL", broker.GetEndpoint("http"))
+    .WithEnvironment("AGENT_MODE", "WarehouseLead");
+Console.WriteLine("✅ Added Warehouse Lead Agent");
+
 // Web Dashboard - Interactive showcase of agent communication
 Console.WriteLine("📦 Adding Logistics Coordination UI...");
 var logisticsUI = builder.AddProject<Projects.AgentBus_Examples_LogisticsUI>("logistics-ui")

@@ -59,12 +59,28 @@ try
 
     Log.Information("👂 Listening to ALL events globally...\n");
 
+    // Keep-alive heartbeat
+    _ = Task.Run(async () =>
+    {
+        while (!cts.Token.IsCancellationRequested)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30), cts.Token);
+            if (!cts.Token.IsCancellationRequested)
+            {
+                Log.Information("💓 Agent alive and monitoring all events...");
+            }
+        }
+    });
+
     while (!cts.Token.IsCancellationRequested)
     {
         try
         {
             var eventEnvelope = await agentBus.ReceiveEventAsync(subscription.SubscriptionId, 30, cts.Token);
-            if (eventEnvelope == null) continue;
+            if (eventEnvelope == null)
+            {
+                continue;
+            }
 
             Console.WriteLine(new string('═', 100));
             await agent.ProcessEventAsync(eventEnvelope);

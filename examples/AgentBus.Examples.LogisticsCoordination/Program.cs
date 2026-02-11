@@ -16,17 +16,9 @@ try
 {
     var brokerUrl = Environment.GetEnvironmentVariable("AGENTBUS_URL") ?? "http://localhost:5000";
     
-    // Determine which agent to run
-    if (args.Length == 0)
-    {
-        Console.WriteLine("Usage: dotnet run [ShippingAgent|WarehouseLead]");
-        Console.WriteLine("\nExample:");
-        Console.WriteLine("  Terminal 1: dotnet run WarehouseLead");
-        Console.WriteLine("  Terminal 2: dotnet run ShippingAgent");
-        return;
-    }
-
-    var agentMode = args[0];
+    // Determine which agent to run from environment or args
+    var agentMode = Environment.GetEnvironmentVariable("AGENT_MODE") 
+                   ?? (args.Length > 0 ? args[0] : "ShippingAgent");
 
     if (agentMode.Equals("ShippingAgent", StringComparison.OrdinalIgnoreCase))
     {
@@ -38,7 +30,7 @@ try
     }
     else
     {
-        Log.Error("Unknown agent mode: {Mode}", agentMode);
+        Log.Error("Unknown agent mode: {Mode}. Use ShippingAgent or WarehouseLead", agentMode);
     }
 }
 catch (HttpRequestException ex)
@@ -83,34 +75,24 @@ async Task RunShippingAgentAsync(string brokerUrl)
     Log.Information("🚀 Role: Handles route planning, carrier selection, cost optimization");
     Log.Information("💡 Will ask Warehouse Lead Agent when needing inventory/consolidation advice\n");
 
-    // Simulate a shipping request after a brief delay
-    _ = Task.Run(async () =>
-    {
-        await Task.Delay(3000);
-        
-        Console.WriteLine("\n" + new string('═', 120));
-        Console.WriteLine("📬 INCOMING SHIPPING REQUEST");
-        Console.WriteLine(new string('═', 120) + "\n");
-
-        await agentBus.PublishEventAsync("shipping.request", new
-        {
-            requestId = "SR-2024-001",
-            productName = "Premium Electronics",
-            quantity = 10,
-            destination = "Tokyo",
-            requiredHours = 24,
-            customerTier = "VIP",
-            budget = "flexible",
-            urgency = "HIGH",
-            notes = "Customer needs expedited delivery within 24 hours. Can consolidate from warehouses if needed to optimize costs."
-        });
-    });
-
     // Listen for events and process them
     var cts = new CancellationTokenSource();
     Console.CancelKeyPress += (s, e) => { e.Cancel = true; cts.Cancel(); };
 
     Log.Information("👂 Listening for shipping requests... (Ctrl+C to stop)\n");
+
+    // Keep-alive heartbeat
+    _ = Task.Run(async () =>
+    {
+        while (!cts.Token.IsCancellationRequested)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30), cts.Token);
+            if (!cts.Token.IsCancellationRequested)
+            {
+                Log.Information("💓 Shipping Agent alive and listening...");
+            }
+        }
+    });
 
     while (!cts.Token.IsCancellationRequested)
     {
@@ -121,7 +103,10 @@ async Task RunShippingAgentAsync(string brokerUrl)
                 maxWaitSeconds: 30,
                 cts.Token);
 
-            if (eventEnvelope == null) continue;
+            if (eventEnvelope == null)
+            {
+                continue;
+            }
 
             // Only process shipping requests and warehouse responses
             if (eventEnvelope.EventType == "shipping.request" || eventEnvelope.EventType == "warehouse.response")
@@ -177,6 +162,19 @@ async Task RunWarehouseLeadAgentAsync(string brokerUrl)
 
     Log.Information("👂 Listening for coordination requests from Shipping Agent... (Ctrl+C to stop)\n");
 
+    // Keep-alive heartbeat
+    _ = Task.Run(async () =>
+    {
+        while (!cts.Token.IsCancellationRequested)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30), cts.Token);
+            if (!cts.Token.IsCancellationRequested)
+            {
+                Log.Information("💓 Warehouse Lead Agent alive and listening...");
+            }
+        }
+    });
+
     while (!cts.Token.IsCancellationRequested)
     {
         try
@@ -186,7 +184,10 @@ async Task RunWarehouseLeadAgentAsync(string brokerUrl)
                 maxWaitSeconds: 30,
                 cts.Token);
 
-            if (eventEnvelope == null) continue;
+            if (eventEnvelope == null)
+            {
+                continue;
+            }
 
             // Only process shipping coordination requests
             if (eventEnvelope.EventType == "shipping.coordination.request")

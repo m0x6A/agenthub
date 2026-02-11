@@ -24,6 +24,7 @@
     <ProjectReference Include="..\..\examples\AgentBus.Examples.OperationsInventory\AgentBus.Examples.OperationsInventory.csproj" />
     <ProjectReference Include="..\..\examples\AgentBus.Examples.FinancialAuth\AgentBus.Examples.FinancialAuth.csproj" />
     <ProjectReference Include="..\..\examples\AgentBus.Examples.InternalComms\AgentBus.Examples.InternalComms.csproj" />
+    <ProjectReference Include="..\..\examples\AgentBus.Examples.LogisticsCoordination\AgentBus.Examples.LogisticsCoordination.csproj" />
   </ItemGroup>
 
 </Project>
