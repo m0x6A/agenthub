@@ -1,0 +1,158 @@
+using System.Text;
+using System.Text.Json;
+using System.Net.Http.Json;
+using Azure.Messaging.ServiceBus;
+using Serilog;
+
+namespace AgentBus.Examples.Shared;
+
+/// <summary>
+/// Service Bus-based AgentBus client for direct Azure Service Bus communication
+/// </summary>
+public class ServiceBusAgentBusClient : IAgentBusClient
+{
+    private readonly string _agentBusHttpUrl;
+    private readonly HttpClient _httpClient;
+    private readonly string _serviceBusConnectionString;
+    private readonly string _agentId;
+    private ServiceBusClient? _serviceBusClient;
+    private ServiceBusReceiver? _receiver;
+    private readonly JsonSerializerOptions _jsonOptions;
+
+    public ServiceBusAgentBusClient(string agentBusHttpUrl, string serviceBusConnectionString, string agentId)
+    {
+        _agentBusHttpUrl = agentBusHttpUrl;
+        _httpClient = new HttpClient { BaseAddress = new Uri(agentBusHttpUrl) };
+        _serviceBusConnectionString = serviceBusConnectionString;
+        _agentId = agentId;
+        _jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            WriteIndented = false
+        };
+    }
+
+    public async Task RegisterAgentAsync(AgentRegistration registration)
+    {
+        // Registration still goes through HTTP API
+        var content = new StringContent(
+            JsonSerializer.Serialize(registration, _jsonOptions),
+            Encoding.UTF8,
+            "application/json");
+
+        var response = await _httpClient.PostAsync("/api/agents/register", content);
+        response.EnsureSuccessStatusCode();
+        
+        Log.Information("[ServiceBus] Agent registered: {AgentId}", registration.Id);
+    }
+
+    public async Task<Subscription> SubscribeToAllEventsAsync()
+    {
+        // Get subscription details via HTTP
+        var response = await _httpClient.PostAsync(
+            $"/api/events/subscribe/all?agentId={_agentId}", 
+            null);
+        response.EnsureSuccessStatusCode();
+        
+        var subscription = await response.Content.ReadFromJsonAsync<Subscription>(_jsonOptions);
+        if (subscription == null)
+            throw new InvalidOperationException("Failed to deserialize subscription");
+
+        // Initialize Service Bus receiver
+        _serviceBusClient = new ServiceBusClient(_serviceBusConnectionString);
+        _receiver = _serviceBusClient.CreateReceiver(subscription.TopicName, subscription.SubscriptionId);
+        
+        Log.Information("[ServiceBus] Subscribed to global events: {SubscriptionId}", subscription.SubscriptionId);
+        return subscription;
+    }
+
+    public async Task<Subscription> SubscribeToEventAsync(string eventType)
+    {
+        var response = await _httpClient.PostAsync(
+            $"/api/events/subscribe?agentId={_agentId}&eventType={eventType}", 
+            null);
+        response.EnsureSuccessStatusCode();
+        
+        var subscription = await response.Content.ReadFromJsonAsync<Subscription>(_jsonOptions);
+        if (subscription == null)
+            throw new InvalidOperationException("Failed to deserialize subscription");
+
+        // Initialize Service Bus receiver if not already done
+        if (_serviceBusClient == null)
+        {
+            _serviceBusClient = new ServiceBusClient(_serviceBusConnectionString);
+            _receiver = _serviceBusClient.CreateReceiver(subscription.TopicName, subscription.SubscriptionId);
+        }
+        
+        Log.Information("[ServiceBus] Subscribed to event type: {EventType}", eventType);
+        return subscription;
+    }
+
+    public async Task PublishEventAsync(string eventType, object data, string? correlationId = null)
+    {
+        // Publishing goes through HTTP for simplicity in examples
+        // In production, could send directly to Service Bus topic
+        var envelope = new
+        {
+            eventId = Guid.NewGuid().ToString(),
+            eventType,
+            source = _agentId,
+            timestamp = DateTime.UtcNow,
+            dataVersion = "1.0",
+            data,
+            headers = correlationId != null 
+                ? new Dictionary<string, string> { ["correlationId"] = correlationId }
+                : null
+        };
+
+        var content = new StringContent(
+            JsonSerializer.Serialize(envelope, _jsonOptions),
+            Encoding.UTF8,
+            "application/json");
+
+        var response = await _httpClient.PostAsync("/api/events/publish", content);
+        response.EnsureSuccessStatusCode();
+        
+        Log.Debug("[ServiceBus] Published event via HTTP: {EventType}", eventType);
+    }
+
+    public async Task<EventEnvelope?> ReceiveEventAsync(string subscriptionId, int maxWaitSeconds, CancellationToken cancellationToken)
+    {
+        if (_receiver == null)
+            throw new InvalidOperationException("No active subscription. Call SubscribeToAllEventsAsync first.");
+
+        try
+        {
+            var message = await _receiver.ReceiveMessageAsync(
+                TimeSpan.FromSeconds(maxWaitSeconds), 
+                cancellationToken);
+
+            if (message == null)
+                return null;
+
+            var body = message.Body.ToString();
+            var envelope = JsonSerializer.Deserialize<EventEnvelope>(body, _jsonOptions);
+            
+            // Complete the message
+            await _receiver.CompleteMessageAsync(message, cancellationToken);
+            
+            return envelope;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[ServiceBus] Error receiving event");
+            throw;
+        }
+    }
+
+    public void Dispose()
+    {
+        _receiver?.DisposeAsync().AsTask().Wait();
+        _serviceBusClient?.DisposeAsync().AsTask().Wait();
+        _httpClient.Dispose();
+    }
+}
