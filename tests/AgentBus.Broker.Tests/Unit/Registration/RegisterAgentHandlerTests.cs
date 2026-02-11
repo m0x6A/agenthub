@@ -42,7 +42,11 @@ public class RegisterAgentHandlerTests
 
         _mockRegistry
             .RegisterAgentAsync(Arg.Any<Agent>(), Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(Task.FromResult(new Agent(
+                "test", "test", "test", "1.0.0", AgentStatus.Active,
+                Array.Empty<string>(), new MessageTypes(Array.Empty<string>(), Array.Empty<string>()),
+                new AgentIdentity("id", "p", "t"), new AgentEndpoints("q", null), null,
+                new AgentTimestamps(DateTime.UtcNow, DateTime.UtcNow))));
 
         _mockMessageBroker
             .CreateInboxQueueAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -78,7 +82,7 @@ public class RegisterAgentHandlerTests
         Agent? capturedAgent = null;
         _mockRegistry
             .RegisterAgentAsync(Arg.Do<Agent>(a => capturedAgent = a), Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(c => Task.FromResult(c.Arg<Agent>()));
 
         // Act
         var result = await _handler.HandleAsync(request, CancellationToken.None);
@@ -103,7 +107,7 @@ public class RegisterAgentHandlerTests
 
         _mockRegistry
             .RegisterAgentAsync(Arg.Any<Agent>(), Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(c => Task.FromResult(c.Arg<Agent>()));
 
         var before = DateTime.UtcNow;
 
@@ -133,7 +137,7 @@ public class RegisterAgentHandlerTests
 
         _mockRegistry
             .RegisterAgentAsync(Arg.Any<Agent>(), Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(c => Task.FromResult(c.Arg<Agent>()));
 
         // Act
         await _handler.HandleAsync(request, CancellationToken.None);
