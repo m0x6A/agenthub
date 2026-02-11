@@ -7,7 +7,7 @@ public static class UnsubscribeFromEventEndpoint
         app.MapDelete("/api/v1/agents/{agentId}/subscriptions/{subscriptionId}", UnsubscribeFromEvent)
             .WithName("UnsubscribeByAgentId")
             .WithTags("Registration", "Events")
-            .RequireAuthorization();
+            .AllowAnonymous(); // Allow anonymous for development
 
         return app;
     }

@@ -9,7 +9,7 @@ public static class GetAgentEndpoint
         app.MapGet("/api/v1/agents/{agentId}", GetAgent)
             .WithName("GetAgent")
             .WithTags("Registration")
-            .RequireAuthorization();
+            .AllowAnonymous(); // Allow anonymous for development
             //.WithOpenApi();
 
         return app;

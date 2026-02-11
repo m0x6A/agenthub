@@ -331,7 +331,16 @@
                 const response = await fetch(endpoint, { method: 'POST' });
                 const data = await response.json();
 
-                showInfo(`✅ ${data.message}`);
+                if (response.status === 202) {
+                    // Timeout but event may have been delivered
+                    showWarning(`⚠️ ${data.message}`);
+                } else if (response.ok) {
+                    // Success
+                    showInfo(`✅ ${data.message}`);
+                } else {
+                    // Error
+                    showError(`❌ ${data.message}: ${data.error || 'Unknown error'}`);
+                }
             } catch (error) {
                 console.error('Error:', error);
                 showError('Failed to trigger scenario: ' + error.message);
@@ -409,6 +418,21 @@
                 <div class="message-text">${escapeHtml(message)}</div>
             `;
             container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showWarning(message) {
+            const container = document.getElementById("messagesBody");
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.style.borderLeftColor = '#ff9800';
+            div.style.background = '#fff3e0';
+            div.innerHTML = `
+                <div class="message-header" style="color: #ff9800;">⚠️ Warning</div>
+                <div class="message-text">${escapeHtml(message)}</div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
         }
 
         function showInfo(message) {

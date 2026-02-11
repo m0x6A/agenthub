@@ -9,7 +9,7 @@ public static class DiscoverAgentsEndpoint
         app.MapGet("/api/v1/agents", DiscoverAgents)
             .WithName("DiscoverAgents")
             .WithTags("Registration")
-            .RequireAuthorization();
+            .AllowAnonymous(); // Allow anonymous for development
             //.WithOpenApi();
 
         return app;

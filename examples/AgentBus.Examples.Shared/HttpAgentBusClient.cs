@@ -16,7 +16,11 @@ public class HttpAgentBusClient : IAgentBusClient
 
     public HttpAgentBusClient(string baseUrl, string agentId)
     {
-        _httpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        _httpClient = new HttpClient 
+        { 
+            BaseAddress = new Uri(baseUrl),
+            Timeout = TimeSpan.FromSeconds(30) // Set reasonable timeout
+        };
         _agentId = agentId;
         _jsonOptions = new JsonSerializerOptions
         {
@@ -39,7 +43,7 @@ public class HttpAgentBusClient : IAgentBusClient
                     Encoding.UTF8,
                     "application/json");
 
-                var response = await _httpClient.PostAsync("/api/agents/register", content);
+                var response = await _httpClient.PostAsync("/api/v1/agents/register", content);
                 response.EnsureSuccessStatusCode();
                 
                 Log.Information("[HTTP] Agent registered: {AgentId}", registration.Id);
@@ -62,7 +66,7 @@ public class HttpAgentBusClient : IAgentBusClient
     public async Task<Subscription> SubscribeToAllEventsAsync()
     {
         var response = await _httpClient.PostAsync(
-            $"/api/events/subscribe/all?agentId={_agentId}", 
+            $"/api/v1/events/subscribe/all?agentId={_agentId}", 
             null);
         response.EnsureSuccessStatusCode();
         
@@ -77,7 +81,7 @@ public class HttpAgentBusClient : IAgentBusClient
     public async Task<Subscription> SubscribeToEventAsync(string eventType)
     {
         var response = await _httpClient.PostAsync(
-            $"/api/events/subscribe?agentId={_agentId}&eventType={eventType}", 
+            $"/api/v1/events/subscribe?agentId={_agentId}&eventType={eventType}", 
             null);
         response.EnsureSuccessStatusCode();
         
@@ -91,28 +95,42 @@ public class HttpAgentBusClient : IAgentBusClient
 
     public async Task PublishEventAsync(string eventType, object data, string? correlationId = null)
     {
-        var envelope = new
+        try
         {
-            eventId = Guid.NewGuid().ToString(),
-            eventType,
-            source = _agentId,
-            timestamp = DateTime.UtcNow,
-            dataVersion = "1.0",
-            data,
-            headers = correlationId != null 
-                ? new Dictionary<string, string> { ["correlationId"] = correlationId }
-                : null
-        };
+            var envelope = new
+            {
+                eventId = Guid.NewGuid().ToString(),
+                eventType,
+                source = _agentId,
+                timestamp = DateTime.UtcNow,
+                dataVersion = "1.0",
+                data,
+                headers = correlationId != null 
+                    ? new Dictionary<string, string> { ["correlationId"] = correlationId }
+                    : null
+            };
 
-        var content = new StringContent(
-            JsonSerializer.Serialize(envelope, _jsonOptions),
-            Encoding.UTF8,
-            "application/json");
+            var content = new StringContent(
+                JsonSerializer.Serialize(envelope, _jsonOptions),
+                Encoding.UTF8,
+                "application/json");
 
-        var response = await _httpClient.PostAsync("/api/events/publish", content);
-        response.EnsureSuccessStatusCode();
-        
-        Log.Debug("[HTTP] Published event: {EventType}", eventType);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30)); // 30 second timeout for publish
+            var response = await _httpClient.PostAsync("/api/v1/events/publish", content, cts.Token);
+            response.EnsureSuccessStatusCode();
+            
+            Log.Information("[HTTP] Published event: {EventType}", eventType);
+        }
+        catch (TaskCanceledException ex)
+        {
+            Log.Warning(ex, "Timeout publishing event {EventType} - event may still be delivered", eventType);
+            throw new TimeoutException($"Timeout publishing event {eventType}", ex);
+        }
+        catch (HttpRequestException ex)
+        {
+            Log.Error(ex, "Failed to publish event {EventType}", eventType);
+            throw;
+        }
     }
 
     public async Task<EventEnvelope?> ReceiveEventAsync(string subscriptionId, int maxWaitSeconds, CancellationToken cancellationToken)
@@ -120,7 +138,7 @@ public class HttpAgentBusClient : IAgentBusClient
         try
         {
             var response = await _httpClient.GetAsync(
-                $"/api/events/receive/{subscriptionId}?maxWaitSeconds={maxWaitSeconds}",
+                $"/api/v1/events/receive/{subscriptionId}?maxWaitSeconds={maxWaitSeconds}",
                 cancellationToken);
 
             if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
@@ -144,7 +162,7 @@ public class HttpAgentBusClient : IAgentBusClient
     {
         try
         {
-            var response = await _httpClient.GetAsync($"/api/agents/{agentId}");
+            var response = await _httpClient.GetAsync($"/api/v1/agents/{agentId}");
             
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 return null;
@@ -177,7 +195,7 @@ public class HttpAgentBusClient : IAgentBusClient
                 Encoding.UTF8,
                 "application/json");
 
-            var response = await _httpClient.PostAsync("/api/messages/send", content);
+            var response = await _httpClient.PostAsync("/api/v1/messages/send", content);
             response.EnsureSuccessStatusCode();
             
             Log.Information("[HTTP] Direct message sent from {From} to {To}", _agentId, recipientAgentId);
@@ -194,7 +212,7 @@ public class HttpAgentBusClient : IAgentBusClient
         try
         {
             var response = await _httpClient.GetAsync(
-                $"/api/messages/receive?agentId={_agentId}&maxWaitSeconds={maxWaitSeconds}",
+                $"/api/v1/messages/receive?agentId={_agentId}&maxWaitSeconds={maxWaitSeconds}",
                 cancellationToken);
 
             if (response.StatusCode == System.Net.HttpStatusCode.NoContent)

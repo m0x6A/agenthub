@@ -22,7 +22,11 @@ public class ServiceBusAgentBusClient : IAgentBusClient
     public ServiceBusAgentBusClient(string agentBusHttpUrl, string serviceBusConnectionString, string agentId)
     {
         _agentBusHttpUrl = agentBusHttpUrl;
-        _httpClient = new HttpClient { BaseAddress = new Uri(agentBusHttpUrl) };
+        _httpClient = new HttpClient 
+        { 
+            BaseAddress = new Uri(agentBusHttpUrl),
+            Timeout = TimeSpan.FromSeconds(30) // Set reasonable timeout
+        };
         _serviceBusConnectionString = serviceBusConnectionString;
         _agentId = agentId;
         _jsonOptions = new JsonSerializerOptions
@@ -47,7 +51,7 @@ public class ServiceBusAgentBusClient : IAgentBusClient
                     Encoding.UTF8,
                     "application/json");
 
-                var response = await _httpClient.PostAsync("/api/agents/register", content);
+                var response = await _httpClient.PostAsync("/api/v1/agents/register", content);
                 response.EnsureSuccessStatusCode();
                 
                 Log.Information("[ServiceBus] Agent registered: {AgentId}", registration.Id);
@@ -71,7 +75,7 @@ public class ServiceBusAgentBusClient : IAgentBusClient
     {
         // Get subscription details via HTTP
         var response = await _httpClient.PostAsync(
-            $"/api/events/subscribe/all?agentId={_agentId}", 
+            $"/api/v1/events/subscribe/all?agentId={_agentId}", 
             null);
         response.EnsureSuccessStatusCode();
         
@@ -90,7 +94,7 @@ public class ServiceBusAgentBusClient : IAgentBusClient
     public async Task<Subscription> SubscribeToEventAsync(string eventType)
     {
         var response = await _httpClient.PostAsync(
-            $"/api/events/subscribe?agentId={_agentId}&eventType={eventType}", 
+            $"/api/v1/events/subscribe?agentId={_agentId}&eventType={eventType}", 
             null);
         response.EnsureSuccessStatusCode();
         
@@ -111,30 +115,44 @@ public class ServiceBusAgentBusClient : IAgentBusClient
 
     public async Task PublishEventAsync(string eventType, object data, string? correlationId = null)
     {
-        // Publishing goes through HTTP for simplicity in examples
-        // In production, could send directly to Service Bus topic
-        var envelope = new
+        try
         {
-            eventId = Guid.NewGuid().ToString(),
-            eventType,
-            source = _agentId,
-            timestamp = DateTime.UtcNow,
-            dataVersion = "1.0",
-            data,
-            headers = correlationId != null 
-                ? new Dictionary<string, string> { ["correlationId"] = correlationId }
-                : null
-        };
+            // Publishing goes through HTTP for simplicity in examples
+            // In production, could send directly to Service Bus topic
+            var envelope = new
+            {
+                eventId = Guid.NewGuid().ToString(),
+                eventType,
+                source = _agentId,
+                timestamp = DateTime.UtcNow,
+                dataVersion = "1.0",
+                data,
+                headers = correlationId != null 
+                    ? new Dictionary<string, string> { ["correlationId"] = correlationId }
+                    : null
+            };
 
-        var content = new StringContent(
-            JsonSerializer.Serialize(envelope, _jsonOptions),
-            Encoding.UTF8,
-            "application/json");
+            var content = new StringContent(
+                JsonSerializer.Serialize(envelope, _jsonOptions),
+                Encoding.UTF8,
+                "application/json");
 
-        var response = await _httpClient.PostAsync("/api/events/publish", content);
-        response.EnsureSuccessStatusCode();
-        
-        Log.Debug("[ServiceBus] Published event via HTTP: {EventType}", eventType);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)); // 10 second timeout for publish
+            var response = await _httpClient.PostAsync("/api/events/publish", content, cts.Token);
+            response.EnsureSuccessStatusCode();
+            
+            Log.Information("[ServiceBus] Published event via HTTP: {EventType}", eventType);
+        }
+        catch (TaskCanceledException ex)
+        {
+            Log.Warning(ex, "Timeout publishing event {EventType} - event may still be delivered", eventType);
+            throw new TimeoutException($"Timeout publishing event {eventType}", ex);
+        }
+        catch (HttpRequestException ex)
+        {
+            Log.Error(ex, "Failed to publish event {EventType}", eventType);
+            throw;
+        }
     }
 
     public async Task<EventEnvelope?> ReceiveEventAsync(string subscriptionId, int maxWaitSeconds, CancellationToken cancellationToken)

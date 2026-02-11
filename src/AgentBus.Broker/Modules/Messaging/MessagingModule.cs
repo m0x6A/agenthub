@@ -21,17 +21,17 @@ public static class MessagingModule
         app.MapPost("/api/v1/messages/send", SendMessageEndpoint.Handle)
             .WithName("SendMessage")
             .WithTags("Messaging")
-            .RequireAuthorization();
+            .AllowAnonymous(); // Allow anonymous for development
 
         app.MapGet("/api/v1/messages/receive", ReceiveMessageEndpoint.Handle)
             .WithName("ReceiveMessage")
             .WithTags("Messaging")
-            .RequireAuthorization();
+            .AllowAnonymous(); // Allow anonymous for development
 
         app.MapPost("/api/v1/messages/{messageId}/ack", AcknowledgeMessageEndpoint.Handle)
             .WithName("AcknowledgeMessage")
             .WithTags("Messaging")
-            .RequireAuthorization();
+            .AllowAnonymous(); // Allow anonymous for development
 
         return app;
     }

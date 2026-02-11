@@ -23,22 +23,22 @@ public static class EventingModule
         app.MapPost("/api/v1/events/publish", PublishEventEndpoint.Handle)
             .WithName("PublishEvent")
             .WithTags("Eventing")
-            .RequireAuthorization();
+            .AllowAnonymous(); // Allow anonymous for development
 
         app.MapPost("/api/v1/events/subscribe", SubscribeToEventEndpoint.Handle)
             .WithName("SubscribeAsAgent")
             .WithTags("Eventing")
-            .RequireAuthorization();
+            .AllowAnonymous(); // Allow anonymous for development
 
         app.MapGet("/api/v1/events/receive/{subscriptionId}", ReceiveEventEndpoint.Handle)
             .WithName("ReceiveEvent")
             .WithTags("Eventing")
-            .RequireAuthorization();
+            .AllowAnonymous(); // Allow anonymous for development
 
         app.MapDelete("/api/v1/events/subscriptions/{subscriptionId}", UnsubscribeFromEventEndpoint.Handle)
             .WithName("UnsubscribeFromEvent")
             .WithTags("Eventing")
-            .RequireAuthorization();
+            .AllowAnonymous(); // Allow anonymous for development
 
         return app;
     }

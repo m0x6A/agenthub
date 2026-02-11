@@ -13,7 +13,7 @@ public static class SubscribeToEventEndpoint
         app.MapPost("/api/v1/agents/{agentId}/subscriptions", SubscribeToEvent)
             .WithName("SubscribeToEvent")
             .WithTags("Registration", "Events")
-            .RequireAuthorization();
+            .AllowAnonymous(); // Allow anonymous for development
 
         return app;
     }

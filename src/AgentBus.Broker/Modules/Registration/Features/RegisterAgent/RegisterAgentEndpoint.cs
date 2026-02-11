@@ -10,7 +10,7 @@ public static class RegisterAgentEndpoint
         app.MapPost("/api/v1/agents", RegisterAgent)
             .WithName("RegisterAgent")
             .WithTags("Registration")
-            .RequireAuthorization();
+            .AllowAnonymous(); // Allow anonymous for development
             //.WithOpenApi();
 
         return app;

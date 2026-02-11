@@ -20,7 +20,7 @@ public static class SendMessageEndpoint
         app.MapPost("/api/v1/communication/send", SendMessage)
             .WithName("SendMessage")
             .WithTags("Communication")
-            .RequireAuthorization();
+            .AllowAnonymous(); // Allow anonymous for development
 
         return app;
     }

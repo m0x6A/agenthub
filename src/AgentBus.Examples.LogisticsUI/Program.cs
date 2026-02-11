@@ -29,8 +29,8 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", b =>
         b.AllowAnyOrigin()
-         .AllowAnyMethod()
-         .AllowAnyHeader());
+            .AllowAnyMethod()
+            .AllowAnyHeader());
 });
 
 var app = builder.Build();
@@ -46,14 +46,14 @@ app.Use(async (context, next) =>
     {
         var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
         logger.LogError(ex, "Unhandled exception in request pipeline");
-        
+
         if (!context.Response.HasStarted)
         {
             context.Response.StatusCode = 500;
             context.Response.ContentType = "application/json";
-            await context.Response.WriteAsJsonAsync(new 
-            { 
-                error = "Internal Server Error", 
+            await context.Response.WriteAsJsonAsync(new
+            {
+                error = "Internal Server Error",
                 message = ex.Message,
                 type = ex.GetType().Name
             });
@@ -99,7 +99,7 @@ app.MapGet("/api/events", () =>
 app.MapGet("/api/events/stream", async (HttpContext context) =>
 {
     var commService = context.RequestServices.GetRequiredService<AgentCommunicationService>();
-    
+
     context.Response.ContentType = "text/event-stream";
     context.Response.Headers.CacheControl = "no-cache";
     context.Response.Headers.Connection = "keep-alive";
@@ -114,13 +114,14 @@ app.MapGet("/api/events/stream", async (HttpContext context) =>
         await context.Response.WriteAsync($"data: {json}\n\n");
         await context.Response.Body.FlushAsync();
     }
+
     lastEventCount = events.Count;
 
     // Keep connection alive and send new events
     while (!context.RequestAborted.IsCancellationRequested)
     {
         await Task.Delay(1000);
-        
+
         var currentEvents = commService.GetEvents();
         if (currentEvents.Count > lastEventCount)
         {
@@ -131,6 +132,7 @@ app.MapGet("/api/events/stream", async (HttpContext context) =>
                 await context.Response.WriteAsync($"data: {json}\n\n");
                 await context.Response.Body.FlushAsync();
             }
+
             lastEventCount = currentEvents.Count;
         }
     }
@@ -139,86 +141,157 @@ app.MapGet("/api/events/stream", async (HttpContext context) =>
 // API: Trigger scenario 1 - Simple inquiry
 app.MapPost("/api/scenarios/urgent-tokyo", async () =>
 {
-    var agentBus = app.Services.GetRequiredService<IAgentBusClient>();
-    var commService = app.Services.GetRequiredService<AgentCommunicationService>();
-    
-    // Publish actual event that triggers real agents
-    await agentBus.PublishEventAsync("shipping.request", new
+    try
     {
-        requestId = "SR-" + Guid.NewGuid().ToString()[..8],
-        productName = "Premium Electronics",
-        quantity = 10,
-        destination = "Tokyo",
-        requiredHours = 24,
-        customerTier = "VIP",
-        budget = "flexible",
-        urgency = "HIGH",
-        notes = "Customer needs expedited delivery within 24 hours. Can consolidate from warehouses if needed to optimize costs."
-    });
+        var agentBus = app.Services.GetRequiredService<IAgentBusClient>();
+        var commService = app.Services.GetRequiredService<AgentCommunicationService>();
 
-    return Results.Ok(new { 
-        scenario = "urgent-tokyo",
-        status = "triggered",
-        message = "Published shipping.request event - watch for agent responses!"
-    });
+        // Publish actual event that triggers real agents
+        await agentBus.PublishEventAsync("global", new
+        {
+            requestId = "SR-" + Guid.NewGuid().ToString()[..8],
+            productName = "Premium Electronics",
+            quantity = 10,
+            destination = "Tokyo",
+            requiredHours = 24,
+            customerTier = "VIP",
+            budget = "flexible",
+            urgency = "HIGH",
+            notes =
+                "Customer needs expedited delivery within 24 hours. Can consolidate from warehouses if needed to optimize costs."
+        });
+
+        return Results.Ok(new
+        {
+            scenario = "urgent-tokyo",
+            status = "triggered",
+            message = "Published global event - watch for agent responses!"
+        });
+    }
+    catch (TimeoutException ex)
+    {
+        return Results.Json(new
+        {
+            scenario = "urgent-tokyo",
+            status = "timeout",
+            message = "Event publish timed out but may have been delivered. Check events panel.",
+            error = ex.Message
+        }, statusCode: 202); // Accepted
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new
+        {
+            scenario = "urgent-tokyo",
+            status = "error",
+            message = "Failed to publish event",
+            error = ex.Message
+        }, statusCode: 500);
+    }
 });
 
 // API: Trigger scenario 2 - Inventory constraint
 app.MapPost("/api/scenarios/inventory-issue", async () =>
 {
-    var agentBus = app.Services.GetRequiredService<IAgentBusClient>();
-    
-    await agentBus.PublishEventAsync("shipping.request", new
+    try
     {
-        requestId = "SR-" + Guid.NewGuid().ToString()[..8],
-        productName = "Standard Widget",
-        quantity = 100,
-        destination = "Singapore",
-        requiredHours = 48,
-        customerTier = "Standard",
-        budget = "standard",
-        urgency = "MEDIUM",
-        notes = "Need 100 units to Singapore within 48 hours. Check inventory availability across network."
-    });
+        var agentBus = app.Services.GetRequiredService<IAgentBusClient>();
 
-    return Results.Ok(new {
-        scenario = "inventory-issue",
-        status = "triggered",
-        message = "Published shipping.request event - watch for agent responses!"
-    });
-});
+        await agentBus.PublishEventAsync("global", new
+        {
+            requestId = "SR-" + Guid.NewGuid().ToString()[..8],
+            productName = "Standard Widget",
+            quantity = 100,
+            destination = "Singapore",
+            requiredHours = 48,
+            customerTier = "Standard",
+            budget = "standard",
+            urgency = "MEDIUM",
+            notes = "Need 100 units to Singapore within 48 hours. Check inventory availability across network."
+        });
 
-// API: Trigger scenario 3 - Cost optimization
-app.MapPost("/api/scenarios/cost-optimization", async () =>
-{
-    var agentBus = app.Services.GetRequiredService<IAgentBusClient>();
-    
-    await agentBus.PublishEventAsync("shipping.request", new
+        return Results.Ok(new
+        {
+            scenario = "inventory-issue",
+            status = "triggered",
+            message = "Published global event - watch for agent responses!"
+        });
+    }
+    catch (TimeoutException ex)
     {
-        requestId = "SR-" + Guid.NewGuid().ToString()[..8],
-        productName = "Bulk Order Widgets",
-        quantity = 500,
-        destination = "Melbourne",
-        requiredHours = 168, // 7 days
-        customerTier = "Enterprise",
-        budget = "flexible",
-        urgency = "LOW",
-        notes = "Large bulk order. No rush. Looking for cost optimization opportunities through consolidation."
-    });
+        return Results.Json(new
+        {
+            scenario = "inventory-issue",
+            status = "timeout",
+            message = "Event publish timed out but may have been delivered. Check events panel.",
+            error = ex.Message
+        }, statusCode: 202);
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new
+        {
+            scenario = "inventory-issue",
+            status = "error",
+            message = "Failed to publish event",
+            error = ex.Message
+        }, statusCode: 500);
+    }
 
-    return Results.Ok(new {
-        scenario = "cost-optimization",
-        status = "triggered",
-        message = "Published shipping.request event - watch for agent responses!"
-    });
+    app.MapPost("/api/scenarios/cost-optimization", async () =>
+    {
+        try
+        {
+            var agentBus = app.Services.GetRequiredService<IAgentBusClient>();
+
+            await agentBus.PublishEventAsync("global", new
+            {
+                requestId = "SR-" + Guid.NewGuid().ToString()[..8],
+                productName = "Bulk Order Widgets",
+                quantity = 500,
+                destination = "Melbourne",
+                requiredHours = 168, // 7 days
+                customerTier = "Enterprise",
+                budget = "flexible",
+                urgency = "LOW",
+                notes =
+                    "Large bulk order. No rush. Looking for cost optimization opportunities through consolidation."
+            });
+
+            return Results.Ok(new
+            {
+                scenario = "cost-optimization",
+                status = "triggered",
+                message = "Published global event - watch for agent responses!"
+            });
+        }
+        catch (TimeoutException ex)
+        {
+            return Results.Json(new
+            {
+                scenario = "cost-optimization",
+                status = "timeout",
+                message = "Event publish timed out but may have been delivered. Check events panel.",
+                error = ex.Message
+            }, statusCode: 202);
+        }
+        catch (Exception ex)
+        {
+            return Results.Json(new
+            {
+                scenario = "cost-optimization",
+                status = "error",
+                message = "Failed to publish event",
+                error = ex.Message
+            }, statusCode: 500);
+        }
+
 });
-
-// API: Clear events
 app.MapPost("/api/events/clear", () =>
-{
-    // Events are managed by the background service, just return ok
-    // In a real app, you'd clear the queue
-    return Results.Ok(new { status = "cleared (restart to actually clear)" });
-});
+    {
+        // Events are managed by the background service, just return ok
+        // In a real app, you'd clear the queue
+        return Results.Ok(new { status = "cleared (restart to actually clear)" });
+    });
 
-app.Run();
+    app.Run();

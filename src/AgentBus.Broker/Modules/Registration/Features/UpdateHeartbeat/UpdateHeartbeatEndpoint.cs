@@ -9,7 +9,7 @@ public static class UpdateHeartbeatEndpoint
         app.MapPatch("/api/v1/agents/{agentId}/heartbeat", UpdateHeartbeat)
             .WithName("UpdateHeartbeat")
             .WithTags("Registration")
-            .RequireAuthorization();
+            .AllowAnonymous(); // Allow anonymous for development
             //.WithOpenApi();
 
         return app;

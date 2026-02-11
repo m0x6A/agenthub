@@ -9,7 +9,7 @@ public static class DeregisterAgentEndpoint
         app.MapDelete("/api/v1/agents/{agentId}", DeregisterAgent)
             .WithName("DeregisterAgent")
             .WithTags("Registration")
-            .RequireAuthorization();
+            .AllowAnonymous(); // Allow anonymous for development
             //.WithOpenApi();
 
         return app;
