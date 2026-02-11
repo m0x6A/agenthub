@@ -7,15 +7,18 @@ public sealed class RegisterAgentHandler
 {
     private readonly IAgentRegistry _agentRegistry;
     private readonly IMessageBroker _messageBroker;
+    private readonly IEventBroker _eventBroker;
     private readonly TimeProvider _timeProvider;
 
     public RegisterAgentHandler(
         IAgentRegistry agentRegistry,
         IMessageBroker messageBroker,
+        IEventBroker eventBroker,
         TimeProvider timeProvider)
     {
         _agentRegistry = agentRegistry;
         _messageBroker = messageBroker;
+        _eventBroker = eventBroker;
         _timeProvider = timeProvider;
     }
 
@@ -29,6 +32,20 @@ public sealed class RegisterAgentHandler
         {
             inboxQueueName = request.InboxQueueName ?? GenerateInboxQueueName(request.Id);
             await _messageBroker.CreateInboxQueueAsync(request.Id, cancellationToken);
+        }
+
+        // Auto-subscribe all agents to global broadcast events if they support event subscription
+        EventSubscription[]? eventSubscriptions = [];
+        if (request.Communication.SupportsEventSubscription)
+        {
+            var globalSubscription = await _eventBroker.SubscribeToAllEventsAsync(request.Id, cancellationToken);
+            eventSubscriptions = 
+            [
+                new EventSubscription(
+                    EventType: "*",
+                    SubscriptionId: globalSubscription.Id,
+                    Filters: null)
+            ];
         }
 
         var agent = new Agent(
@@ -46,7 +63,7 @@ public sealed class RegisterAgentHandler
                 A2AEndpointUrl: request.A2AEndpointUrl
             ),
             Communication: request.Communication,
-            EventSubscriptions: [],
+            EventSubscriptions: eventSubscriptions,
             EventsPublished: request.EventsPublished,
             PreferredTransport: request.PreferredTransport,
             Metadata: request.Metadata,

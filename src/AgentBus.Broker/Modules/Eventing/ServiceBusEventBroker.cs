@@ -8,6 +8,8 @@ namespace AgentBus.Broker.Modules.Eventing;
 
 public sealed class ServiceBusEventBroker : IEventBroker
 {
+    private const string GlobalBroadcastTopic = "agent-events-broadcast";
+    
     private readonly ServiceBusClient _client;
     private readonly ServiceBusAdministrationClient _adminClient;
     private readonly ILogger<ServiceBusEventBroker> _logger;
@@ -36,6 +38,7 @@ public sealed class ServiceBusEventBroker : IEventBroker
     {
         var topicName = envelope.EventType.Replace(".", "-");
         
+        // Create specific event type topic if it doesn't exist
         if (!await _adminClient.TopicExistsAsync(topicName, cancellationToken))
         {
             var options = new CreateTopicOptions(topicName)
@@ -46,9 +49,12 @@ public sealed class ServiceBusEventBroker : IEventBroker
             };
             await _adminClient.CreateTopicAsync(options, cancellationToken);
         }
+        
+        // Ensure global broadcast topic exists
+        await EnsureGlobalBroadcastTopicExistsAsync(cancellationToken);
 
-        var sender = _client.CreateSender(topicName);
-        var message = new ServiceBusMessage(JsonSerializer.Serialize(envelope))
+        var messageBody = JsonSerializer.Serialize(envelope);
+        var message = new ServiceBusMessage(messageBody)
         {
             MessageId = envelope.EventId,
             Subject = envelope.EventType
@@ -62,7 +68,34 @@ public sealed class ServiceBusEventBroker : IEventBroker
             }
         }
 
-        await sender.SendMessageAsync(message, cancellationToken);
+        // Publish to specific event type topic
+        var specificSender = _client.CreateSender(topicName);
+        await using var _ = specificSender.ConfigureAwait(false);
+        await specificSender.SendMessageAsync(message, cancellationToken);
+        
+        // Also publish to global broadcast topic so all agents receive it
+        var globalMessage = new ServiceBusMessage(messageBody)
+        {
+            MessageId = $"{envelope.EventId}-broadcast",
+            Subject = envelope.EventType
+        };
+        
+        if (envelope.Headers != null)
+        {
+            foreach (var header in envelope.Headers)
+            {
+                globalMessage.ApplicationProperties[header.Key] = header.Value;
+            }
+        }
+        
+        var globalSender = _client.CreateSender(GlobalBroadcastTopic);
+        await using var __ = globalSender.ConfigureAwait(false);
+        await globalSender.SendMessageAsync(globalMessage, cancellationToken);
+        
+        _logger.LogInformation(
+            "Published event {EventId} of type {EventType} to both specific and global broadcast topics",
+            envelope.EventId, envelope.EventType);
+        
         return envelope.EventId;
     }
 
@@ -114,8 +147,13 @@ public sealed class ServiceBusEventBroker : IEventBroker
             throw new InvalidOperationException($"Subscription {subscriptionId} not found");
         }
 
-        var topicName = subscription.EventType.Replace(".", "-");
+        // Handle global broadcast subscription (EventType = "*")
+        var topicName = subscription.EventType == "*" 
+            ? GlobalBroadcastTopic 
+            : subscription.EventType.Replace(".", "-");
+            
         var receiver = _client.CreateReceiver(topicName, subscription.ServiceBusSubscriptionName);
+        await using var _ = receiver.ConfigureAwait(false);
 
         var message = await receiver.ReceiveMessageAsync(
             TimeSpan.FromSeconds(maxWaitTimeSeconds),
@@ -138,7 +176,10 @@ public sealed class ServiceBusEventBroker : IEventBroker
             throw new InvalidOperationException($"Subscription {subscriptionId} not found");
         }
 
-        var topicName = subscription.EventType.Replace(".", "-");
+        // Handle global broadcast subscription (EventType = "*")
+        var topicName = subscription.EventType == "*" 
+            ? GlobalBroadcastTopic 
+            : subscription.EventType.Replace(".", "-");
         
         if (await _adminClient.SubscriptionExistsAsync(topicName, subscription.ServiceBusSubscriptionName, cancellationToken))
         {
@@ -161,5 +202,55 @@ public sealed class ServiceBusEventBroker : IEventBroker
         }
         
         _logger.LogInformation("Deleted all subscriptions for agent {AgentId}", agentId);
+    }
+    
+    public async Task<Subscription> SubscribeToAllEventsAsync(string agentId, CancellationToken cancellationToken)
+    {
+        await EnsureGlobalBroadcastTopicExistsAsync(cancellationToken);
+        
+        var subscriptionId = Guid.NewGuid().ToString();
+        var subscriptionName = $"sub-{agentId}-global-{subscriptionId[..8]}";
+
+        var options = new CreateSubscriptionOptions(GlobalBroadcastTopic, subscriptionName)
+        {
+            MaxDeliveryCount = 10,
+            DeadLetteringOnMessageExpiration = true,
+            DefaultMessageTimeToLive = TimeSpan.FromDays(1)
+        };
+
+        await _adminClient.CreateSubscriptionAsync(options, cancellationToken);
+
+        var subscription = new Subscription(
+            Id: subscriptionId,
+            PartitionKey: agentId,
+            AgentId: agentId,
+            EventType: "*", // Special marker for global broadcast subscription
+            ServiceBusSubscriptionName: subscriptionName,
+            Filters: null,
+            CreatedAt: DateTime.UtcNow);
+
+        _subscriptions[subscriptionId] = subscription;
+        
+        _logger.LogInformation(
+            "Agent {AgentId} subscribed to global broadcast with subscription {SubscriptionId}",
+            agentId, subscriptionId);
+        
+        return subscription;
+    }
+    
+    private async Task EnsureGlobalBroadcastTopicExistsAsync(CancellationToken cancellationToken)
+    {
+        if (!await _adminClient.TopicExistsAsync(GlobalBroadcastTopic, cancellationToken))
+        {
+            var options = new CreateTopicOptions(GlobalBroadcastTopic)
+            {
+                DefaultMessageTimeToLive = TimeSpan.FromDays(1),
+                RequiresDuplicateDetection = true,
+                DuplicateDetectionHistoryTimeWindow = TimeSpan.FromMinutes(10)
+            };
+            await _adminClient.CreateTopicAsync(options, cancellationToken);
+            
+            _logger.LogInformation("Created global broadcast topic: {TopicName}", GlobalBroadcastTopic);
+        }
     }
 }
