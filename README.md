@@ -16,7 +16,7 @@ A production-ready message broker platform that enables autonomous agents to reg
 
 ## Architecture
 
-- **Language**: C# 13 / .NET 9 (LTS)
+- **Language**: C# 14 / .NET 10 (LTS)
 - **Platform**: Azure Container Apps (Consumption plan)
 - **Storage**: Azure Cosmos DB (Serverless) for agent registry, Azure Service Bus (Standard) for messaging
 - **Authentication**: Azure Entra ID with User-Assigned Managed Identities

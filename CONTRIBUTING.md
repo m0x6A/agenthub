@@ -38,7 +38,7 @@ Thank you for your interest in contributing to AgentBus! This document provides 
 
 This project uses EditorConfig for consistent code style. The .editorconfig file in the repository root defines the rules:
 
-- C# 13 / .NET 9
+- C# 14 / .NET 10
 - Nullable reference types enabled
 - File-scoped namespaces
 - Primary constructors preferred

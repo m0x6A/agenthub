@@ -5,7 +5,7 @@ This guide explains how to set up a complete local emulation environment for Age
 ## Prerequisites
 
 - **Docker Desktop** (Windows, Mac, or Linux) - [Download](https://www.docker.com/products/docker-desktop)
-- **.NET 9.0 SDK** - [Download](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
+- **.NET 10.0 SDK** - [Download](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
 - **Visual Studio Code** or **Visual Studio 2022** (or later)
 - **Git**
 

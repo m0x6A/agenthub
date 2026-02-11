@@ -6,7 +6,7 @@
 
 ## What Was Implemented
 
-### Core Application (C# 13 / .NET 9)
+### Core Application (C# 14 / .NET 10)
 
 #### Phase 1-2: Foundation
 - ✅ Project structure with Central Package Management
