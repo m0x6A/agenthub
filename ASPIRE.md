@@ -64,26 +64,28 @@ https://localhost:17238
 │  Aspire AppHost (Orchestrator)                                │
 ├──────────────────────────────────────────────────────────────┤
 │                                                                │
-│  ┌─────────────────┐         ┌──────────────────────┐        │
-│  │ Azure OpenAI    │         │ Service Bus Emulator │        │
-│  │ (LLM)           │         │ (Local Dev)          │        │
-│  └─────────────────┘         └──────────────────────┘        │
-│           │                            ▲                       │
-│           │                            │                       │
-│           ▼                            │                       │
-│  ┌──────────────────────────┐         │                       │
-│  │  AgentBus.Broker         │◄────────┘                       │
-│  │  (localhost:5000)        │                                 │
-│  └──────────────────────────┘                                 │
-│           ▲                                                    │
-│           │                                                    │
-│           │    ┌───────────────────────┴────────┐             │
-│           │    │                                 │             │
-│  ┌────────┴────┴───┐     ┌──────────────────────▼──┐         │
-│  │ Operations &     │     │  Customer Experience    │         │
-│  │ Inventory Agent  │     │  Agent (HTTP + LLM)     │         │
-│  │ (SB + LLM)       │     └─────────────────────────┘         │
-│  └──────────────────┘                                          │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐  │
+│  │ Azure OpenAI    │  │ Cosmos DB       │  │ Service Bus │  │
+│  │ (LLM)           │  │ Emulator        │  │ Emulator    │  │
+│  └─────────────────┘  └─────────────────┘  └─────────────┘  │
+│           │                   │                    │          │
+│           │                   │                    │          │
+│           ▼                   ▼                    ▼          │
+│  ┌─────────────────────────────────────────────────────┐     │
+│  │  AgentBus.Broker                                    │     │
+│  │  (localhost:5000)                                   │     │
+│  │  - Agent Registry (Cosmos DB)                       │     │
+│  │  - Message/Event Routing (Service Bus)             │     │
+│  └─────────────────────────────────────────────────────┘     │
+│           ▲                                                   │
+│           │                                                   │
+│           │    ┌───────────────────────┴────────┐            │
+│           │    │                                 │            │
+│  ┌────────┴────┴───┐     ┌──────────────────────▼──┐        │
+│  │ Operations &     │     │  Customer Experience    │        │
+│  │ Inventory Agent  │     │  Agent (HTTP + LLM)     │        │
+│  │ (SB + LLM)       │     └─────────────────────────┘        │
+│  └──────────────────┘                                         │
 │                                                                │
 │  ┌──────────────────┐     ┌─────────────────────────┐        │
 │  │ Internal Comms   │     │  Financial Auth Agent   │        │
@@ -244,8 +246,10 @@ When running with Aspire, agents automatically:
 The `AutonomousAgent` base class handles this connection logic automatically.
 
 Aspire automatically injects:
+- `ConnectionStrings__cosmosdb` - Cosmos DB connection string (broker only)
+- `ConnectionStrings__servicebus` - Service Bus connection string (broker + agents using Service Bus transport)
+- `ConnectionStrings__openai__Endpoint` - Azure OpenAI endpoint (all agents)
 - `AGENTBUS_URL` - Broker endpoint (from service discovery)
-- `ConnectionStrings__servicebus` - Service Bus connection string
 - `APPLICATIONINSIGHTS_CONNECTION_STRING` - App Insights key
 
 ### Service Dependencies

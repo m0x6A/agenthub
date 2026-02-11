@@ -4,12 +4,19 @@ var builder = DistributedApplication.CreateBuilder(args);
 // Provisions Azure OpenAI with model deployments automatically
 var openai = builder.AddAzureOpenAI("openai");
 
+// Azure Cosmos DB for agent registry and subscription storage
+var cosmosDb = builder.AddAzureCosmosDB("cosmosdb")
+    .RunAsEmulator();  // Use local emulator for development
+
+var agentbusDb = cosmosDb.AddCosmosDatabase("agentbus");
+
 // Azure Service Bus for agent communication (will provision in Azure or use local emulator)
 var serviceBus = builder.AddAzureServiceBus("servicebus")
     .RunAsEmulator(); // Use local emulator for development
 
 // AgentBus Broker - Core message broker for all agents
 var broker = builder.AddProject<Projects.AgentBus_Broker>("agentbus-broker")
+    .WithReference(agentbusDb)
     .WithReference(serviceBus)
     .WithHttpEndpoint(port: 5000, name: "http");
 

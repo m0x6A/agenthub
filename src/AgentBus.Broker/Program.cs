@@ -40,12 +40,14 @@ builder.Services.AddSingleton<AgentBusMetrics>();
 // Add Azure services
 builder.Services.AddSingleton(sp =>
 {
-    var connectionString = builder.Configuration["CosmosDb:ConnectionString"];
+    // Aspire injects Cosmos DB connection string as ConnectionStrings__cosmosdb
+    var connectionString = builder.Configuration.GetConnectionString("cosmosdb") 
+        ?? builder.Configuration["CosmosDb:ConnectionString"];
     var databaseName = builder.Configuration["CosmosDb:DatabaseName"] ?? "agentbus";
     
     if (string.IsNullOrEmpty(connectionString))
     {
-        throw new InvalidOperationException("CosmosDb:ConnectionString is required");
+        throw new InvalidOperationException("Cosmos DB connection string is required. Configure via Aspire or CosmosDb:ConnectionString");
     }
     
     return new Microsoft.Azure.Cosmos.CosmosClient(connectionString);
@@ -53,11 +55,13 @@ builder.Services.AddSingleton(sp =>
 
 builder.Services.AddSingleton(sp =>
 {
-    var connectionString = builder.Configuration["ServiceBus:ConnectionString"];
+    // Aspire injects Service Bus connection string as ConnectionStrings__servicebus
+    var connectionString = builder.Configuration.GetConnectionString("servicebus")
+        ?? builder.Configuration["ServiceBus:ConnectionString"];
     
     if (string.IsNullOrEmpty(connectionString))
     {
-        throw new InvalidOperationException("ServiceBus:ConnectionString is required");
+        throw new InvalidOperationException("Service Bus connection string is required. Configure via Aspire or ServiceBus:ConnectionString");
     }
     
     return new Azure.Messaging.ServiceBus.ServiceBusClient(connectionString);
