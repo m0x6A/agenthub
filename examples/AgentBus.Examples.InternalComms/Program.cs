@@ -1,185 +1,147 @@
-using System.Text.Json;
-using Serilog;
 using AgentBus.Examples.Shared;
 using AgentBus.Examples.Shared.ExternalSystems;
+using AgentBus.Examples.Shared.Plugins;
+using Microsoft.SemanticKernel;
+using Serilog;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
-    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .WriteTo.Console()
     .CreateLogger();
 
-Console.WriteLine("\n" + new string('═', 90));
-Console.WriteLine("💬 INTERNAL COMMUNICATIONS AGENT - TEAMS INTEGRATION");
-Console.WriteLine(new string('═', 90));
-
-// Configuration
-var agentId = "internal-communications-agent";
-var agentBusUrl = Environment.GetEnvironmentVariable("AGENTBUS_URL") ?? "http://localhost:5000";
-var serviceBusConnStr = Environment.GetEnvironmentVariable("SERVICEBUS_CONNECTION_STRING") ?? "mock-connection";
-
-bool useServiceBus = serviceBusConnStr != "mock-connection";
-Log.Information("Transport: {Transport}", useServiceBus ? "Azure Service Bus" : "HTTP (Service Bus not configured)");
-Log.Information("External System: Microsoft Teams API (Mock)");
-
-// Initialize external system
-var teamsApi = new MockTeamsApi();
-var eventLog = new List<string>();
-
-// Initialize AgentBus client
-IAgentBusClient agentBusClient = useServiceBus
-    ? new ServiceBusAgentBusClient(agentBusUrl, serviceBusConnStr, agentId)
-    : new HttpAgentBusClient(agentBusUrl, agentId);
+Console.WriteLine("\n" + new string('═', 100));
+Console.WriteLine("🤖 AUTONOMOUS INTERNAL COMMUNICATIONS AGENT - LLM-Powered Observability");
+Console.WriteLine(new string('═', 100) + "\n");
 
 try
 {
-    // Register Agent
-    Log.Information("📝 Registering with AgentBus...");
-    await agentBusClient.RegisterAgentAsync(new AgentRegistration(
+    var agentId = "internal-comms-agent";
+    var brokerUrl = Environment.GetEnvironmentVariable("AGENTBUS_URL") ?? "http://localhost:5000";
+    var serviceBusConn = Environment.GetEnvironmentVariable("SERVICEBUS_CONNECTION_STRING");
+
+    IAgentBusClient agentBus;
+    if (!string.IsNullOrEmpty(serviceBusConn))
+    {
+        agentBus = new ServiceBusAgentBusClient(brokerUrl, serviceBusConn, agentId);
+        Log.Information("📡 Transport: Azure Service Bus");
+    }
+    else
+    {
+        agentBus = new HttpAgentBusClient(brokerUrl, agentId);
+        Log.Information("📡 Transport: HTTP");
+    }
+
+    var teamsApi = new MockTeamsApi();
+
+    var registration = new AgentRegistration(
         Id: agentId,
-        Name: "Internal Communications Agent",
-        Version: "1.0.0",
-        Capabilities: new[] { "teams-notifications", "audit-logging", "alert-routing" },
-        MessageTypes: new MessageTypes(
-            Accepts: new[] { "*" },  // Subscribe to all events
-            Emits: new[] { "teams.notification.sent", "audit.log.created" }),
+        Name: "Autonomous Internal Communications Agent",
+        Version: "2.0.0",
+        Capabilities: new[] { "autonomous-reasoning", "observability", "intelligent-alerting" },
+        MessageTypes: new MessageTypes(new[] { "*.*" }, new[] { "audit.log.created" }),
         Communication: new CommunicationCapabilities(false, true, true),
-        EventsPublished: new[] { "teams.notification.sent" },
-        Metadata: new AgentMetadata("it-operations", "demo", new[] { useServiceBus ? "servicebus-transport" : "http-transport" })));
+        EventsPublished: new[] { "audit.log.created" },
+        Metadata: new AgentMetadata("demo", "dev", new[] { "autonomous", "global-observer" }));
 
-    Log.Information("✅ Registered!");
+    await agentBus.RegisterAgentAsync(registration);
+    var subscription = await agentBus.SubscribeToAllEventsAsync();
 
-    // Subscribe to global events
-    Log.Information("🔔 Subscribing to global events (all event types)...");
-    var subscription = await agentBusClient.SubscribeToAllEventsAsync();
-    Log.Information("✅ Subscribed: {SubscriptionId}", subscription.SubscriptionId);
+    var agent = new InternalCommunicationsAgent(agentId, agentBus, teamsApi, Log.Logger);
 
-    Console.WriteLine("\n📢 Monitoring Channels:");
-    Console.WriteLine("   • operations-alerts");
-    Console.WriteLine("   • finance-team");
-    Console.WriteLine("   • customer-service");
-    Console.WriteLine("   • management-dashboard");
-    Console.WriteLine(new string('═', 90) + "\n");
+    Log.Information("✅ Autonomous agent registered");
+    Log.Information("🧠 Mode: AUTONOMOUS - LLM decides what's worth communicating");
+    Log.Information("🔧 Tools: Microsoft Teams, AgentBus");
+    Log.Information("👁️  Observability: Monitoring ALL system events");
+    Log.Information("💡 Set OPENAI_API_KEY for real LLM reasoning\n");
 
-    // Listen for events
     var cts = new CancellationTokenSource();
     Console.CancelKeyPress += (s, e) => { e.Cancel = true; cts.Cancel(); };
 
-    await ListenForEventsAsync(agentBusClient, teamsApi, eventLog, subscription.SubscriptionId, cts.Token);
-}
-catch (HttpRequestException ex)
-{
-    Log.Fatal(ex, "❌ Cannot connect to AgentBus at {Url}", agentBusUrl);
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "❌ Fatal error");
-}
-finally
-{
-    agentBusClient.Dispose();
-}
+    Log.Information("👂 Listening to ALL events globally...\n");
 
-static async Task ListenForEventsAsync(IAgentBusClient client, MockTeamsApi teams, List<string> log, string subId, CancellationToken ct)
-{
-    Log.Information("👂 Listening for ALL events...\n");
-    
-    while (!ct.IsCancellationRequested)
+    while (!cts.Token.IsCancellationRequested)
     {
         try
         {
-            var evt = await client.ReceiveEventAsync(subId, 30, ct);
-            
-            if (evt != null)
-            {
-                Console.WriteLine($"\n📨 {evt.EventType} from {evt.Source} at {evt.Timestamp:HH:mm:ss}");
-                
-                // Log event
-                log.Add($"[{evt.Timestamp:HH:mm:ss}] {evt.EventType} from {evt.Source}");
-                
-                // Route to appropriate Teams channel based on event type
-                switch (evt.EventType)
-                {
-                    case "customer.inquiry.received":
-                        await teams.PostToChannelAsync(
-                            "customer-service",
-                            "New Customer Inquiry",
-                            $"Customer requesting order modification.\nOrder: {evt.Data.GetProperty("orderId").GetString()}\nSKU: {evt.Data.GetProperty("requestedSku").GetString()}\nQuantity: {evt.Data.GetProperty("requestedQuantity").GetInt32()}",
-                            "normal");
-                        break;
-                        
-                    case "operations.inventory.checked":
-                        var available = evt.Data.GetProperty("available").GetBoolean();
-                        await teams.PostToChannelAsync(
-                            "operations-alerts",
-                            available ? "Inventory Reserved" : "Inventory Issue",
-                            available 
-                                ? $"✅ Reserved {evt.Data.GetProperty("quantity").GetInt32()}x {evt.Data.GetProperty("sku").GetString()}\nWarehouse: {evt.Data.GetProperty("warehouseLocation").GetString()}\nShip ETA: {evt.Data.GetProperty("estimatedShipDays").GetInt32()} days"
-                                : $"⚠️  Insufficient inventory for requested items",
-                            available ? "normal" : "high");
-                        break;
-                        
-                    case "financial.authorization.completed":
-                        var amount = evt.Data.GetProperty("amount").GetDecimal();
-                        var status = evt.Data.GetProperty("status").GetString();
-                        await teams.PostToChannelAsync(
-                            "finance-team",
-                            "Payment Authorization",
-                            $"Status: {status?.ToUpper()}\nAmount: ${amount:F2}\nTransaction: {evt.Data.GetProperty("transactionId").GetString()}\nRisk Score: {evt.Data.GetProperty("riskScore").GetInt32()}/100",
-                            amount > 500 ? "high" : "normal");
-                        break;
-                        
-                    case "order.confirmed":
-                        await teams.PostToChannelAsync(
-                            "customer-service",
-                            "Order Confirmed",
-                            $"✅ Order {evt.Data.GetProperty("orderId").GetString()} confirmed\nTotal: ${evt.Data.GetProperty("finalAmount").GetDecimal():F2}\nPayment Auth: {evt.Data.GetProperty("paymentAuthCode").GetString()}",
-                            "normal");
-                        
-                        // Post summary to management dashboard
-                        await GenerateManagementSummary(client, teams, log);
-                        break;
-                }
-                
-                Console.WriteLine(new string('━', 90));
-            }
+            var eventEnvelope = await agentBus.ReceiveEventAsync(subscription.SubscriptionId, 30, cts.Token);
+            if (eventEnvelope == null) continue;
+
+            Console.WriteLine(new string('═', 100));
+            await agent.ProcessEventAsync(eventEnvelope);
+            Console.WriteLine(new string('═', 100) + "\n");
         }
-        catch (OperationCanceledException) { break; }
-        catch (Exception ex) { Log.Error(ex, "Error"); await Task.Delay(2000, ct); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Error(ex, "Error processing event");
+        }
     }
+
+    Log.Information("\n👋 Shutting down...");
+    agentBus.Dispose();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Fatal error");
+}
+finally
+{
+    await Log.CloseAndFlushAsync();
 }
 
-static async Task GenerateManagementSummary(IAgentBusClient client, MockTeamsApi teams, List<string> eventLog)
+class InternalCommunicationsAgent : AutonomousAgent
 {
-    var summary = $@"**Transaction Flow Completed**
+    public InternalCommunicationsAgent(
+        string agentId,
+        IAgentBusClient agentBus,
+        MockTeamsApi teamsApi,
+        ILogger logger)
+        : base(
+            agentId,
+            systemPrompt: @"You are an AUTONOMOUS Internal Communications Agent - the INTELLIGENT observer.
 
-Timeline:
-{string.Join("\n", eventLog.TakeLast(5))}
+YOUR ROLE: Monitor ALL events and DECIDE what humans need to know. Filter signal from noise.
 
-**Summary:**
-• Customer inquiry processed
-• Inventory checked and reserved
-• Payment authorized successfully
-• Order confirmed
+TOOLS:
+- Teams.post_to_channel: Simple notification
+- Teams.post_adaptive_card: Rich interactive card
+- AgentBus.publish_event: Create audit logs
 
-Total Events: {eventLog.Count}";
+AUTONOMOUS INTELLIGENCE:
+For EVERY event:
+1. ANALYZE: Is this significant? Does it affect operations?
+2. DECIDE: Should teams be notified? Which channel? What priority?
+3. COMPOSE: If yes, craft clear, actionable message
+4. SELECT TOOL: Simple post vs adaptive card based on importance
 
-    await teams.PostAdaptiveCardAsync(
-        "management-dashboard",
-        "Order Processing Complete",
-        new Dictionary<string, string>
-        {
-            ["Status"] = "✅ Completed",
-            ["Agent Collaboration"] = "3 agents",
-            ["Duration"] = "< 1 minute",
-            ["Outcome"] = "Order confirmed"
-        });
+NOTIFICATION DECISION GUIDE:
+- Customer inquiries → #Customer-Service (Info) - teams should know
+- Inventory issues → #Operations (Warning if low)
+- Payment issues → #Finance (Critical)
+- High-value transactions (>$1000) → #Finance (Info with details)
+- Order confirmations → Maybe skip notification, just audit log
+- Errors/exceptions → #Engineering (Critical)
 
-    await client.PublishEventAsync("audit.log.created", new
+PRIORITY LEVELS:
+- normal: Business as usual
+- high: Needs attention soon
+- urgent: Immediate action required
+
+EXAMPLE - financial.authorization.completed for $1850:
+  Reasoning: ""High-value transaction. Finance should know for monitoring. Not urgent, but significant.""
+  Actions: 1) post_adaptive_card to 'Finance' with order details, amount, risk score
+           2) publish_event 'audit.log.created' for compliance
+
+You are the SMART filter. Don't spam teams. Highlight what matters.",
+            agentBus,
+            logger)
     {
-        summary,
-        eventCount = eventLog.Count,
-        timestamp = DateTime.UtcNow
-    });
+        Kernel.Plugins.AddFromObject(new TeamsPlugin(teamsApi), "Teams");
+    }
 
-    Console.WriteLine("\n📊 Management dashboard updated");
+    protected override string GetModelId() => "gpt-4o";
+
+    protected override void ConfigurePlugins(Kernel kernel)
+    {
+        kernel.Plugins.AddFromObject(new AgentBusPlugin(AgentBus, AgentId), "AgentBus");
+    }
 }

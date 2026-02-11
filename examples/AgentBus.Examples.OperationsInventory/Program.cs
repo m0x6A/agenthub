@@ -1,179 +1,136 @@
-using System.Text.Json;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
-using Serilog;
 using AgentBus.Examples.Shared;
 using AgentBus.Examples.Shared.ExternalSystems;
+using AgentBus.Examples.Shared.Plugins;
+using Microsoft.SemanticKernel;
+using Serilog;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
-    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .WriteTo.Console()
     .CreateLogger();
 
-Console.WriteLine("\n" + new string('═', 90));
-Console.WriteLine("📦 OPERATIONS & INVENTORY AGENT - SUPPLY CHAIN MANAGEMENT");
-Console.WriteLine(new string('═', 90));
-
-// Configuration
-var agentId = "operations-inventory-agent";
-var agentBusUrl = Environment.GetEnvironmentVariable("AGENTBUS_URL") ?? "http://localhost:5000";
-var serviceBusConnStr = Environment.GetEnvironmentVariable("SERVICEBUS_CONNECTION_STRING") ?? "mock-connection";
-var openAiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-var modelId = "gpt-4o-mini";
-
-bool useServiceBus = serviceBusConnStr != "mock-connection";
-Log.Information("Transport: {Transport}", useServiceBus ? "Azure Service Bus" : "HTTP (Service Bus not configured)");
-Log.Information("External System: Inventory Database (Mock)");
-Log.Information("Model: {Model}", modelId);
-
-// Initialize Semantic Kernel if API key available
-IChatCompletionService? chatService = null;
-if (!string.IsNullOrEmpty(openAiKey))
-{
-    var kernelBuilder = Kernel.CreateBuilder();
-    kernelBuilder.AddOpenAIChatCompletion(modelId, openAiKey);
-    var kernel = kernelBuilder.Build();
-    chatService = kernel.GetRequiredService<IChatCompletionService>();
-    Log.Information("✅ Semantic Kernel initialized");
-}
-else
-{
-    Log.Warning("⚠️  No OPENAI_API_KEY - using mock responses");
-}
-
-// Initialize external system
-var inventoryDb = new MockInventoryDatabase();
-
-// Initialize AgentBus client (Service Bus if available, otherwise HTTP)
-IAgentBusClient agentBusClient = useServiceBus
-    ? new ServiceBusAgentBusClient(agentBusUrl, serviceBusConnStr, agentId)
-    : new HttpAgentBusClient(agentBusUrl, agentId);
+Console.WriteLine("\n" + new string('═', 100));
+Console.WriteLine("🤖 AUTONOMOUS OPERATIONS & INVENTORY AGENT - LLM-Powered Supply Chain Optimization");
+Console.WriteLine(new string('═', 100) + "\n");
 
 try
 {
-    // Register Agent
-    Log.Information("📝 Registering with AgentBus...");
-    await agentBusClient.RegisterAgentAsync(new AgentRegistration(
+    var agentId = "operations-inventory-agent";
+    var brokerUrl = Environment.GetEnvironmentVariable("AGENTBUS_URL") ?? "http://localhost:5000";
+    var serviceBusConn = Environment.GetEnvironmentVariable("SERVICEBUS_CONNECTION_STRING");
+
+    // Initialize AgentBus client
+    IAgentBusClient agentBus;
+    if (!string.IsNullOrEmpty(serviceBusConn))
+    {
+        agentBus = new ServiceBusAgentBusClient(brokerUrl, serviceBusConn, agentId);
+        Log.Information("📡 Transport: Azure Service Bus");
+    }
+    else
+    {
+        agentBus = new HttpAgentBusClient(brokerUrl, agentId);
+        Log.Information("📡 Transport: HTTP (set SERVICEBUS_CONNECTION_STRING for Service Bus)");
+    }
+
+    var inventoryDb = new MockInventoryDatabase();
+
+    var registration = new AgentRegistration(
         Id: agentId,
-        Name: "Operations & Inventory Agent",
-        Version: "1.0.0",
-        Capabilities: new[] { "inventory-check", "fulfillment-planning", "warehouse-routing" },
-        MessageTypes: new MessageTypes(
-            Accepts: new[] { "customer.inquiry.received" },
-            Emits: new[] { "operations.inventory.checked" }),
+        Name: "Autonomous Operations & Inventory Agent",
+        Version: "2.0.0",
+        Capabilities: new[] { "autonomous-reasoning", "inventory", "fulfillment-optimization" },
+        MessageTypes: new MessageTypes(new[] { "customer.inquiry.analyzed" }, new[] { "operations.inventory.checked" }),
         Communication: new CommunicationCapabilities(false, true, true),
         EventsPublished: new[] { "operations.inventory.checked" },
-        Metadata: new AgentMetadata("operations", "demo", new[] { useServiceBus ? "servicebus-transport" : "http-transport" })));
+        Metadata: new AgentMetadata("demo", "dev", new[] { "autonomous", "supply-chain" }));
 
-    Log.Information("✅ Registered!");
+    await agentBus.RegisterAgentAsync(registration);
+    var subscription = await agentBus.SubscribeToAllEventsAsync();
 
-    // Subscribe to global events
-    Log.Information("🔔 Subscribing to global events...");
-    var subscription = await agentBusClient.SubscribeToAllEventsAsync();
-    Log.Information("✅ Subscribed: {SubscriptionId}", subscription.SubscriptionId);
+    var agent = new OperationsInventoryAgent(agentId, agentBus, inventoryDb, Log.Logger);
 
-    Console.WriteLine(new string('═', 90) + "\n");
+    Log.Information("✅ Autonomous agent registered");
+    Log.Information("🧠 Mode: AUTONOMOUS - LLM optimizes fulfillment strategies");
+    Log.Information("🔧 Tools: Inventory (check/reserve), Fulfillment Strategy, AgentBus");
+    Log.Information("💡 Set OPENAI_API_KEY for real LLM reasoning\n");
 
-    // Listen for events
     var cts = new CancellationTokenSource();
     Console.CancelKeyPress += (s, e) => { e.Cancel = true; cts.Cancel(); };
 
-    await ListenForEventsAsync(agentBusClient, inventoryDb, subscription.SubscriptionId, cts.Token);
-}
-catch (HttpRequestException ex)
-{
-    Log.Fatal(ex, "❌ Cannot connect to AgentBus at {Url}", agentBusUrl);
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "❌ Fatal error");
-}
-finally
-{
-    agentBusClient.Dispose();
-}
+    Log.Information("👂 Listening for events...\n");
 
-static async Task ListenForEventsAsync(IAgentBusClient client, MockInventoryDatabase inventoryDb, string subId, CancellationToken ct)
-{
-    Log.Information("👂 Listening for customer inquiries...\n");
-    
-    while (!ct.IsCancellationRequested)
+    while (!cts.Token.IsCancellationRequested)
     {
         try
         {
-            var evt = await client.ReceiveEventAsync(subId, 30, ct);
-            
-            if (evt != null)
-            {
-                Console.WriteLine($"\n📨 {evt.EventType} from {evt.Source} at {evt.Timestamp:HH:mm:ss}");
-                
-                if (evt.EventType == "customer.inquiry.received")
-                {
-                    Console.WriteLine("🔍 Processing inventory check...");
-                    
-                    // Extract data
-                    var data = evt.Data;
-                    var sku = data.GetProperty("requestedSku").GetString() ?? "";
-                    var quantity = data.GetProperty("requestedQuantity").GetInt32();
-                    
-                    // Check inventory in external system
-                    var inventoryItem = await inventoryDb.CheckInventoryAsync(sku);
-                    
-                    if (inventoryItem == null)
-                    {
-                        Console.WriteLine($"❌ SKU {sku} not found");
-                        continue;
-                    }
-                    
-                    Console.WriteLine($"\n📊 Inventory Status:");
-                    Console.WriteLine($"   SKU: {inventoryItem.Sku}");
-                    Console.WriteLine($"   Product: {inventoryItem.ProductName}");
-                    Console.WriteLine($"   Available: {inventoryItem.QuantityAvailable} units");
-                    Console.WriteLine($"   Unit Price: ${inventoryItem.UnitPrice}");
-                    Console.WriteLine($"   Warehouse: {inventoryItem.WarehouseLocation}");
-                    
-                    bool available = inventoryItem.QuantityAvailable >= quantity;
-                    
-                    if (available)
-                    {
-                        // Reserve inventory
-                        var reservationId = await inventoryDb.ReserveInventoryAsync(sku, quantity);
-                        
-                        // Determine fulfillment
-                        var fulfillment = await inventoryDb.DetermineFulfillmentAsync(new[] { sku }, "98101");
-                        
-                        Console.WriteLine($"\n✅ Inventory Available!");
-                        Console.WriteLine($"   Reserved: {reservationId}");
-                        Console.WriteLine($"   Ship from: {fulfillment.WarehouseCode}");
-                        Console.WriteLine($"   ETA: {fulfillment.EstimatedShippingDays} days");
-                        
-                        // Publish result to AgentBus
-                        await client.PublishEventAsync("operations.inventory.checked", new
-                        {
-                            available = true,
-                            sku,
-                            quantity,
-                            productName = inventoryItem.ProductName,
-                            unitPrice = inventoryItem.UnitPrice,
-                            warehouseLocation = fulfillment.WarehouseCode,
-                            estimatedShipDays = fulfillment.EstimatedShippingDays,
-                            shippingCost = fulfillment.ShippingCost,
-                            reservationId,
-                            timestamp = DateTime.UtcNow
-                        });
-                        
-                        Console.WriteLine("\n✅ Published: operations.inventory.checked");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"\n❌ Insufficient inventory (need {quantity}, have {inventoryItem.QuantityAvailable})");
-                    }
-                }
-                
-                Console.WriteLine(new string('━', 90));
-            }
+            var eventEnvelope = await agentBus.ReceiveEventAsync(subscription.SubscriptionId, 30, cts.Token);
+            if (eventEnvelope == null) continue;
+
+            Console.WriteLine(new string('═', 100));
+            await agent.ProcessEventAsync(eventEnvelope);
+            Console.WriteLine(new string('═', 100) + "\n");
         }
-        catch (OperationCanceledException) { break; }
-        catch (Exception ex) { Log.Error(ex, "Error"); await Task.Delay(2000, ct); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Error(ex, "Error processing event");
+        }
+    }
+
+    Log.Information("\n👋 Shutting down...");
+    agentBus.Dispose();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Fatal error");
+}
+finally
+{
+    await Log.CloseAndFlushAsync();
+}
+
+class OperationsInventoryAgent : AutonomousAgent
+{
+    public OperationsInventoryAgent(
+        string agentId,
+        IAgentBusClient agentBus,
+        MockInventoryDatabase inventoryDb,
+        ILogger logger)
+        : base(
+            agentId,
+            systemPrompt: @"You are an AUTONOMOUS Operations & Inventory Agent that DECIDES optimal fulfillment strategies.
+
+YOUR ROLE: Manage inventory and optimize order fulfillment, not by rules, but by REASONING.
+
+TOOLS:
+- Inventory.check_inventory: Check stock levels
+- Inventory.reserve_inventory: Reserve products
+- Inventory.determine_fulfillment_strategy: Optimize shipping
+- AgentBus.publish_event: Coordinate with other agents
+
+AUTONOMOUS BEHAVIOR:
+When you see a customer inquiry:
+1. ANALYZE: What products? Quantity? Customer urgency?
+2. INVESTIGATE: Check inventory levels
+3. STRATEGIZE: Single warehouse vs split shipment? Cost vs speed trade-off?
+4. DECIDE: Can fulfill? Should reserve now or wait for payment auth?
+5. COORDINATE: Inform Financial agent if high-value (>$500)
+
+EXAMPLE - Inquiry for 2 Premium Widgets:
+  Reasoning: ""Premium items are high-value. Check inventory across all locations. 
+              If available, determine best warehouse. Coordinate with Financial for payment before reserving.""
+  Actions: 1) check_inventory for each SKU, 2) determine_fulfillment_strategy, 3) publish 'operations.inventory.checked' with findings
+
+You optimize for delivery time AND cost. You THINK about trade-offs.",
+            agentBus,
+            logger)
+    {
+        Kernel.Plugins.AddFromObject(new InventoryPlugin(inventoryDb), "Inventory");
+    }
+
+    protected override string GetModelId() => "gpt-4o-mini";
+
+    protected override void ConfigurePlugins(Kernel kernel)
+    {
+        kernel.Plugins.AddFromObject(new AgentBusPlugin(AgentBus, AgentId), "AgentBus");
     }
 }

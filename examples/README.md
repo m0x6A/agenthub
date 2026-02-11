@@ -1,624 +1,384 @@
-# AgentBus Example Agents - Real Multi-Agent System
+# Autonomous AgentBus Examples
 
-This directory demonstrates **production-ready multi-agent orchestration** with real AgentBus communication, mixed transport protocols, and mock external system integrations.
+## Why These Are TRULY Autonomous Agents (Not Microservices)
 
-## 🏗️ Architecture
+### The Key Difference
+
+**❌ Microservice Pattern** (What we DON'T have):
+```
+Event Received → if (eventType == "X") { callServiceY(); publishEventZ(); }
+```
+- Hardcoded logic
+- Deterministic responses
+- No reasoning
+- Just choreographed services
+
+**✅ Autonomous Agent Pattern** (What we HAVE):
+```
+Event Received → LLM Analyzes Context → LLM Decides Relevance → 
+LLM Chooses Tools → Execute Actions → LLM Determines Next Steps
+```
+- **Real AI decision-making** using Language Models
+- **Dynamic responses** based on context and reasoning
+- **Tool selection** - agents choose which capabilities to use
+- **Multi-step planning** - agents think through problems
+- **Goal-oriented** - working toward objectives, not just reacting
+
+## Architecture
+
+### Autonomous Agent Components
+
+Each agent is built on:
+
+1. **Semantic Kernel** - LLM orchestration framework
+2. **Function Calling/Plugins** - Tools agents can choose to use
+3. **Chat History** - Conversational memory across events
+4. **System Prompt** - Guidelines and objectives (not rules)
+5. **AgentBus Integration** - Real inter-agent communication
+
+### Agent Decision Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        AGENTBUS BROKER                               │
-│                (HTTP REST API + Service Bus Topics)                  │
-└────┬────────────┬─────────────────┬────────────────┬────────────────┘
-     │ HTTP       │ Service Bus     │ HTTP           │ Service Bus
-     │            │                 │                │
-┌────▼──────┐ ┌──▼───────────┐ ┌───▼─────────┐ ┌───▼──────────────┐
-│ Customer  │ │  Operations  │ │  Financial  │ │    Internal      │
-│   Agent   │ │  & Inventory │ │Authorization│ │ Communications   │
-│  (HTTP)   │ │ (ServiceBus) │ │   (HTTP)    │ │  (ServiceBus)    │
-└────┬──────┘ └──┬───────────┘ └───┬─────────┘ └───┬──────────────┘
-     │           │                  │                │
- ┌───▼─────┐ ┌──▼────────┐   ┌─────▼──────┐   ┌────▼──────┐
- │ Order   │ │ Inventory │   │  Payment   │   │ Microsoft │
- │ System  │ │ Database  │   │  Gateway   │   │   Teams   │
- │ (Mock)  │ │  (Mock)   │   │   (Mock)   │   │  (Mock)   │
- └─────────┘ └───────────┘   └────────────┘   └───────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  EVENT ARRIVES                                                   │
+├─────────────────────────────────────────────────────────────────┤
+│  Agent receives event envelope with type, source, data           │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  LLM ANALYSIS PHASE                                              │
+├─────────────────────────────────────────────────────────────────┤
+│  • LLM reads event context                                       │
+│  • Analyzes relevance to agent's role                            │
+│  • Understands intent and urgency                                │
+│  • Recalls previous conversation history                         │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  DECISION MAKING PHASE                                           │
+├─────────────────────────────────────────────────────────────────┤
+│  • LLM decides: "Is this relevant to me?"                        │
+│  • LLM determines: "What information do I need?"                 │
+│  • LLM chooses: "Which tools should I use?"                      │
+│  • LLM plans: "What's my strategy?"                              │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  TOOL EXECUTION PHASE (Function Calling)                         │
+├─────────────────────────────────────────────────────────────────┤
+│  • LLM autonomously calls chosen tools                           │
+│  • Examples:                                                     │
+│    - OrderSystem.get_order_details("ORD-123")                    │
+│    - Inventory.check_inventory("SKU-456")                        │
+│    - Payment.authorize_payment("CUST-001", 500.00)               │
+│  • LLM sees tool results and continues reasoning                 │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  COORDINATION PHASE                                              │
+├─────────────────────────────────────────────────────────────────┤
+│  • LLM decides: "Should I communicate with other agents?"        │
+│  • If yes, LLM calls: AgentBus.publish_event(...)                │
+│  • LLM composes event payload based on findings                  │
+│  • Other agents autonomously decide how to respond               │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## 🤖 Agent Details
+## The Four Autonomous Agents
 
 ### 1. Customer Experience Agent
-**File**: [AgentBus.Examples.CustomerExperience/Program.cs](AgentBus.Examples.CustomerExperience/Program.cs)
+**Model**: GPT-4o (best reasoning for customer interaction)  
+**Transport**: HTTP REST API  
+**External System**: Mock Order Management (SAP/Salesforce-like)
 
-- **Transport**: HTTP (REST API)
-- **External System**: Order Management System API
-- **LLM Model**: GPT-4o (OpenAI)
-- **Responsibilities**:
-  - Receives customer inquiries
-  - Queries order data from external Order System
-  - Publishes `customer.inquiry.received` events to AgentBus
-  - Listens for `order.confirmed` events
-  - Generates customer-facing responses
+**Autonomous Behaviors**:
+- Analyzes customer inquiries using natural language understanding
+- Decides which order information to retrieve based on context
+- Determines urgency from sentiment analysis
+- Chooses whether to handle directly or coordinate with other agents
+- Adapts responses based on customer tone
 
-**External System Integration**:
-```csharp
-var orderSystem = new MockOrderSystemApi();
-var order = await orderSystem.GetOrderAsync("ORD-2024-001");
+**Tools Available**:
+- `OrderSystem.get_order_details` - Retrieve order information
+- `OrderSystem.update_order` - Modify orders
+- `OrderSystem.confirm_order_fulfillment` - Final confirmation
+- `AgentBus.publish_event` - Request help from other agents
+
+**Example Reasoning**:
+```
+Customer: "Where's my order? I need it urgently!"
+
+Agent's Internal Reasoning (LLM):
+"Customer is concerned and urgent. Need to check order status.
+If there's a delay, should coordinate with Operations agent.
+Let me get order details first, then decide next steps."
+
+Actions Chosen by LLM:
+1. Call get_order_details("ORD-2024-001")
+2. Analyze: Status is "processing", needs inventory check
+3. Call publish_event("customer.inquiry.analyzed", {...})
+   to request Operations agent's help
 ```
 
 ### 2. Operations & Inventory Agent
-**File**: [AgentBus.Examples.OperationsInventory/Program.cs](AgentBus.Examples.OperationsInventory/Program.cs)
+**Model**: GPT-4o-mini (cost-effective for structured operations)  
+**Transport**: Azure Service Bus (with HTTP fallback)  
+**External System**: Mock Inventory Database (SQL/CosmosDB-like)
 
-- **Transport**: Azure Service Bus (falls back to HTTP)
-- **External System**: Inventory Database
-- **LLM Model**: GPT-4o-mini (cost-effective for operations)
-- **Responsibilities**:
-  - Checks inventory levels in database
-  - Reserves stock for orders
-  - Determines optimal fulfillment warehouse
-  - Calculates shipping estimates
-  - Publishes `operations.inventory.checked` events
+**Autonomous Behaviors**:
+- Analyzes inventory requirements from customer needs
+- Decides optimal fulfillment strategy (cost vs speed trade-offs)
+- Determines when to reserve inventory vs wait for payment
+- Chooses between single warehouse or split shipment
+- Identifies when procurement is needed
 
-**External System Integration**:
-```csharp
-var inventoryDb = new MockInventoryDatabase();
-var item = await inventoryDb.CheckInventoryAsync("SKU-789");
-var reservationId = await inventoryDb.ReserveInventoryAsync("SKU-789", 2);
-var fulfillment = await inventoryDb.DetermineFulfillmentAsync(skus, zipCode);
+**Tools Available**:
+- `Inventory.check_inventory` - Check stock levels
+- `Inventory.reserve_inventory` - Reserve products
+- `Inventory.determine_fulfillment_strategy` - Optimize shipping
+- `AgentBus.publish_event` - Coordinate with Financial agent
+
+**Example Reasoning**:
+```
+Event: customer.inquiry.analyzed (request for 2 Premium Widgets)
+
+Agent's Internal Reasoning:
+"Premium Widgets are high-value items. Need to check inventory
+across all warehouses. If available, should I reserve now or
+wait for payment auth? Order value looks high ($500+), should
+coordinate with Financial agent first for risk assessment."
+
+Actions Chosen by LLM:
+1. Call check_inventory("SKU-456")
+2. Analyze: 15 available in WH-East-01
+3. Call determine_fulfillment_strategy to optimize
+4. Decide: High value, defer reservation until payment approved
+5. Call publish_event("operations.inventory.checked") with findings
 ```
 
 ### 3. Financial Authorization Agent
-**File**: [AgentBus.Examples.FinancialAuth/Program.cs](AgentBus.Examples.FinancialAuth/Program.cs)
+**Model**: GPT-4o (strong reasoning for financial decisions)  
+**Transport**: HTTP REST API  
+**External System**: Mock Payment Gateway (Stripe/PayPal-like)
 
-- **Transport**: HTTP
-- **External System**: Payment Gateway
-- **LLM Model**: Claude 3.5 Sonnet (conceptual - superior financial reasoning)
-- **Responsibilities**:
-  - Calculates order totals (subtotal + tax + shipping)
-  - Performs risk assessment
-  - Authorizes payments via gateway
-  - Publishes `financial.authorization.completed` events
-  - Publishes `order.confirmed` events
+**Autonomous Behaviors**:
+- Analyzes transaction risk using multiple factors
+- Decides whether to authorize, decline, or flag for manual review
+- Balances fraud prevention with customer experience
+- Determines appropriate risk thresholds based on context
+- Chooses when to capture payments vs hold authorization
 
-**External System Integration**:
-```csharp
-var paymentGateway = new MockPaymentGateway();
-var authResult = await paymentGateway.AuthorizePaymentAsync(customerId, amount);
+**Tools Available**:
+- `Payment.authorize_payment` - Authorize with fraud detection
+- `Payment.capture_payment` - Charge authorized payment
+- `AgentBus.publish_event` - Communicate decisions
+
+**Example Reasoning**:
+```
+Event: operations.inventory.checked (order ready, value $850)
+
+Agent's Internal Reasoning:
+"High-value order at $850. Need to authorize payment and assess risk.
+International customer might have higher fraud indicators, but
+shouldn't penalize legitimate customers. Let me authorize and
+analyze the risk score."
+
+Actions Chosen by LLM:
+1. Call authorize_payment("CUST-001", 850.00)
+2. Analyze result: Risk score 35 (MEDIUM), Status approved
+3. Reasoning: "Risk is acceptable for this amount, approved"
+4. Call publish_event("financial.authorization.completed") with auth code
+5. If approved, also publish "order.confirmed" to complete flow
 ```
 
 ### 4. Internal Communications Agent
-**File**: [AgentBus.Examples.InternalComms/Program.cs](AgentBus.Examples.InternalComms/Program.cs)
+**Model**: GPT-4o (strong reasoning for communication decisions)  
+**Transport**: Azure Service Bus (with HTTP fallback)  
+**External System**: Mock Microsoft Teams API  
+**Special**: Global event subscription (observes all events)
 
-- **Transport**: Azure Service Bus (falls back to HTTP)
-- **External System**: Microsoft Teams API
-- **LLM Model**: GPT-4o
-- **Responsibilities**:
-  - Subscribes to ALL events (audit trail)
-  - Routes notifications to appropriate Teams channels
-  - Posts to #operations-alerts, #finance-team, #customer-service
-  - Generates management dashboard updates
-  - Creates audit logs
+**Autonomous Behaviors**:
+- Monitors ALL system events (global observer)
+- Decides which events are significant enough to notify teams
+- Chooses appropriate Teams channels based on event type
+- Determines priority levels (normal, high, urgent)
+- Composes contextual, actionable messages for humans
+- Filters noise from signal intelligently
 
-**External System Integration**:
-```csharp
-var teamsApi = new MockTeamsApi();
-await teamsApi.PostToChannelAsync("operations-alerts", title, message, priority);
-await teamsApi.PostAdaptiveCardAsync("management-dashboard", title, fields);
+**Tools Available**:
+- `Teams.post_to_channel` - Simple notifications
+- `Teams.post_adaptive_card` - Rich interactive cards
+- `AgentBus.publish_event` - Create audit logs
+
+**Example Reasoning**:
+```
+Event: financial.authorization.completed ($1,850 order approved)
+
+Agent's Internal Reasoning:
+"High-value transaction completed. Finance team should be aware
+for fraud monitoring purposes. Not urgent (transaction approved),
+but significant amount warrants notification. Should use adaptive
+card to provide structured details."
+
+Actions Chosen by LLM:
+1. Decide: Yes, notify Finance team
+2. Choose: Adaptive card (better for structured data)
+3. Call post_adaptive_card with order ID, amount, risk score
+4. Priority: normal (informational, not urgent)
+5. Call publish_event("audit.log.created") for compliance
 ```
 
-## 🔄 Complete Event Flow
-
-Here's what happens when you run all 4 agents:
-
-```
-T+0s:  Customer Agent starts, simulates inquiry:
-       "Add 2x Premium Widget Plus (SKU-789) to order ORD-2024-001"
-       
-T+0s:  Customer Agent → Order System API
-       GET /orders/ORD-2024-001
-       Response: Current order with 3x Premium Widget ($171.95 total)
-       
-T+0s:  Customer Agent → AgentBus
-       PUBLISH customer.inquiry.received
-       { orderId: "ORD-2024-001", requestedSku: "SKU-789", quantity: 2 }
-
-T+3s:  Operations Agent (via Service Bus) ← AgentBus
-       RECEIVE customer.inquiry.received
-       
-T+3s:  Operations Agent → Inventory Database
-       SELECT * FROM inventory WHERE sku = 'SKU-789'
-       Response: 47 units available, $24.99/unit, Warehouse WH-East-01
-       
-T+3s:  Operations Agent → Inventory Database
-       RESERVE 2 units of SKU-789
-       Response: Reservation RES-ABC123
-       
-T+3s:  Operations Agent → Inventory Database
-       CALCULATE fulfillment for ZIP 98101
-       Response: Ship from WH-East-01, ETA 1 day, $9.99 shipping
-       
-T+3s:  Operations Agent → AgentBus
-       PUBLISH operations.inventory.checked
-       { available: true, sku: "SKU-789", quantity: 2, unitPrice: 24.99,
-         warehouseLocation: "WH-East-01", reservationId: "RES-ABC123" }
-
-T+6s:  Financial Agent ← AgentBus
-       RECEIVE operations.inventory.checked
-       
-T+6s:  Financial Agent calculates:
-       Subtotal: 2 × $24.99 = $49.98
-       Tax (8%): $3.99
-       Shipping: $9.99
-       Total: $63.96
-       
-T+6s:  Financial Agent → Payment Gateway
-       POST /authorize { customerId: "C12345", amount: 63.96 }
-       Response: { transactionId: "TXN-20240211-ABCD", 
-                   authCode: "AUTH-XYZ123", status: "approved", riskScore: 12 }
-       
-T+6s:  Financial Agent → AgentBus
-       PUBLISH financial.authorization.completed
-       { transactionId: "TXN-20240211-ABCD", status: "approved",
-         amount: 63.96, riskScore: 12 }
-       
-T+6s:  Financial Agent → AgentBus
-       PUBLISH order.confirmed
-       { orderId: "ORD-2024-001", finalAmount: 63.96,
-         paymentAuthCode: "AUTH-XYZ123" }
-
-T+6s:  Customer Agent ← AgentBus
-       RECEIVE order.confirmed
-       Generates response: "Great news! Your order update is confirmed..."
-       
-T+9s:  Internal Comms Agent (via Service Bus) ← AgentBus
-       RECEIVE ALL EVENTS (observability mode)
-       
-T+9s:  Internal Comms Agent processes each event:
-       
-       customer.inquiry.received →
-         Teams API: POST #customer-service
-         "New Customer Inquiry: Order ORD-2024-001, SKU: SKU-789, Qty: 2"
-       
-       operations.inventory.checked →
-         Teams API: POST #operations-alerts
-         "Inventory Reserved: 2x SKU-789, Warehouse: WH-East-01, ETA: 1 day"
-       
-       financial.authorization.completed →
-         Teams API: POST #finance-team
-         "Payment Authorization APPROVED: $63.96, Transaction: TXN-..., Risk: 12/100"
-       
-       order.confirmed →
-         Teams API: POST #customer-service
-         "Order Confirmed: ORD-2024-001, Total: $63.96"
-         
-         Teams API: POST #management-dashboard (Adaptive Card)
-         "Transaction Flow Completed: 3 agents, < 1 minute, Status: ✅"
-         
-T+9s:  Internal Comms Agent → AgentBus
-       PUBLISH audit.log.created
-       { eventCount: 5, summary: "..." }
-```
-
-## 📦 Mock External Systems
-
-All external integrations are mocked to demonstrate production patterns:
-
-### MockOrderSystemApi.cs
-Simulates enterprise order management systems (SAP, Salesforce, custom ERP):
-- `GetOrderAsync()` - Retrieve order details
-- `UpdateOrderAsync()` - Add items to order
-- `ConfirmOrderAsync()` - Mark order as confirmed
-- Includes realistic API latency (100-150ms)
-
-### MockInventoryDatabase.cs
-Simulates inventory data stores (SQL Server, PostgreSQL, CosmosDB):
-- `CheckInventoryAsync()` - Query stock levels
-- `ReserveInventoryAsync()` - Lock inventory
-- `DetermineFulfillmentAsync()` - Calculate optimal warehouse and shipping
-- Realistic data with SKUs, quantities, warehouses
-
-### MockPaymentGateway.cs
-Simulates payment processors (Stripe, PayPal, Authorize.net):
-- `AuthorizePaymentAsync()` - Authorize payment with risk scoring
-- `CapturePaymentAsync()` - Capture authorized payment
-- Transaction management with IDs and auth codes
-- Fraud detection simulation
-
-### MockTeamsApi.cs
-Simulates Microsoft Graph API / Teams webhooks:
-- `PostToChannelAsync()` - Send messages to Teams channels
-- `PostAdaptiveCardAsync()` - Send rich formatted cards
-- Visual console output showing Teams notifications
-- Channel routing by department
-
-## 🚀 Running the Examples
+## Running the Autonomous Agents
 
 ### Prerequisites
 
-1. **Start AgentBus Broker** (required):
-   ```bash
-   cd src/AgentBus.Broker
-   dotnet run
-   ```
-   The broker must be running on `http://localhost:5000`
-
-2. **(Optional) Configure Service Bus**:
-   ```bash
-   export SERVICEBUS_CONNECTION_STRING="Endpoint=sb://your-namespace.servicebus.windows.net/;..."
-   ```
-   Without this, agents use HTTP transport (works perfectly fine for demo)
-
-3. **(Optional) Configure LLM APIs**:
-   ```bash
-   export OPENAI_API_KEY="sk-..."
-   export ANTHROPIC_API_KEY="sk-ant-..."
-   ```
-   Without these, agents use mock responses (still demonstrates architecture)
-
-### Option 1: Launch All Agents Together
-
-**PowerShell (Windows):**
-```powershell
-.\examples\run-all-agents.ps1
-```
-
-**Bash (Linux/Mac):**
 ```bash
-chmod +x examples/run-all-agents.sh
-./examples/run-all-agents.sh
-```
-
-This starts all 4 agents in separate terminal windows with staggered delays.
-
-### Option 2: Run Individual Agents
-
-Open 4 separate terminals:
-
-**Terminal 1 - Customer Experience:**
-```bash
-cd examples/AgentBus.Examples.CustomerExperience
+# Required: AgentBus Broker
+cd src/AgentBus.Broker
 dotnet run
-```
 
-**Terminal 2 - Operations & Inventory:**
-```bash
-cd examples/AgentBus.Examples.OperationsInventory
-dotnet run
-```
+# Optional: Real LLM (without this, agents use mock responses)
+export OPENAI_API_KEY="sk-..."
 
-**Terminal 3 - Financial Authorization:**
-```bash
-cd examples/AgentBus.Examples.FinancialAuth
-dotnet run
-```
-
-**Terminal 4 - Internal Communications:**
-```bash
-cd examples/AgentBus.Examples.InternalComms
-dotnet run
-```
-
-## 📊 What You'll See
-
-Each agent displays:
-
-1. **Initialization**:
-   ```
-   ═══════════════════════════════════════════════════════════
-   🎯 CUSTOMER EXPERIENCE AGENT - E-COMMERCE PLATFORM
-   ═══════════════════════════════════════════════════════════
-   Transport: HTTP
-   External System: Order Management System (Mock)
-   Model: gpt-4o
-   ```
-
-2. **Registration**:
-   ```
-   [12:34:56 INF] 📝 Registering with AgentBus...
-   [12:34:56 INF] [HTTP] Agent registered: customer-experience-agent
-   [12:34:56 INF] ✅ Registered!
-   ```
-
-3. **Subscription**:
-   ```
-   [12:34:56 INF] 🔔 Subscribing to global events...
-   [12:34:56 INF] [HTTP] Subscribed to global events: sub-customer-experience-agent-global
-   [12:34:56 INF] ✅ Subscribed: sub-customer-experience-agent-global
-   ```
-
-4. **External System Interactions**:
-   ```
-   📦 Current Order: ORD-2024-001 | Total: $171.95 | Items: 1
-   ```
-
-5. **Event Publishing**:
-   ```
-   ✅ Published: customer.inquiry.received
-   ```
-
-6. **Event Receiving**:
-   ```
-   📨 order.confirmed from financial-authorization-agent at 12:35:02
-   🎉 Order Confirmed!
-   ```
-
-7. **Teams Notifications** (Internal Comms Agent):
-   ```
-   ═══════════════════════════════════════════════════════════
-   📱 MICROSOFT TEAMS - #operations-alerts
-   ═══════════════════════════════════════════════════════════
-   ✅ Inventory Reserved
-   
-   Reserved 2x SKU-789
-   Warehouse: WH-East-01
-   Ship ETA: 1 days
-   
-   🕐 12:35:01
-   ═══════════════════════════════════════════════════════════
-   ```
-
-## 🎯 Key Features Demonstrated
-
-### 1. Real AgentBus Communication
-- Actual HTTP requests to AgentBus broker
-- Real Service Bus message delivery (when configured)
-- Not mocked - genuine distributed communication
-
-### 2. Mixed Transport Protocols
-- Customer Agent: HTTP REST API
-- Operations Agent: Service Bus → HTTP fallback
-- Financial Agent: HTTP REST API
-- Internal Comms Agent: Service Bus → HTTP fallback
-
-### 3. External System Integration Patterns
-- Mock systems with realistic interfaces
-- Latency simulation
-- Error handling
-- Production-ready patterns
-
-### 4. Event-Driven Architecture
-- Publish/Subscribe pattern
-- Global event subscription (audit)
-- Correlation IDs
-- Event sourcing ready
-
-### 5. Observability
-- Structured logging (Serilog)
-- Console output for visibility
-- Cross-cutting concerns (Internal Comms)
-- Audit trail
-
-## 🧪 Testing the System
-
-### Verify AgentBus Connection
-If agents can't connect, you'll see:
-```
-❌ Cannot connect to AgentBus at http://localhost:5000
-💡 Start broker: cd src/AgentBus.Broker && dotnet run
-```
-
-### Verify External System Mocks
-Watch for log entries like:
-```
-[12:35:00 INF] [OrderSystem API] Retrieved order: ORD-2024-001
-[12:35:01 INF] [Inventory DB] Checked SKU-789: 47 available
-[12:35:02 INF] [Payment Gateway] Authorization approved: TXN-...
-```
-
-### Verify Event Flow
-Each agent should show received events from other agents via AgentBus.
-
-## 📁 Code Structure
-
-```
-examples/
-├── AgentBus.Examples.Shared/                 # Shared library
-│   ├── AgentBus.Examples.Shared.csproj
-│   ├── IAgentBusClient.cs                    # Client interface
-│   ├── HttpAgentBusClient.cs                 # HTTP implementation
-│   ├── ServiceBusAgentBusClient.cs           # Service Bus implementation
-│   ├── Models.cs                              # Shared data models
-│   └── ExternalSystems/
-│       ├── MockOrderSystemApi.cs
-│       ├── MockInventoryDatabase.cs
-│       ├── MockPaymentGateway.cs
-│       └── MockTeamsApi.cs
-│
-├── AgentBus.Examples.CustomerExperience/
-│   ├── AgentBus.Examples.CustomerExperience.csproj
-│   └── Program.cs                             # HTTP + Order System integration
-│
-├── AgentBus.Examples.OperationsInventory/
-│   ├── AgentBus.Examples.OperationsInventory.csproj
-│   └── Program.cs                             # Service Bus + Inventory DB
-│
-├── AgentBus.Examples.FinancialAuth/
-│   ├── AgentBus.Examples.FinancialAuth.csproj
-│   └── Program.cs                             # HTTP + Payment Gateway
-│
-├── AgentBus.Examples.InternalComms/
-│   ├── AgentBus.Examples.InternalComms.csproj
-│   └── Program.cs                             # Service Bus + Teams API
-│
-├── run-all-agents.ps1
-├── run-all-agents.sh
-├── README.md                                  # This file
-└── QUICKSTART.md                               # Quick reference
-```
-
-## 💡 Learning Objectives
-
-These examples teach:
-
-1. **Multi-Agent System Design**
-   - Agent autonomy and specialization
-   - Loose coupling via events
-   - No direct agent-to-agent calls
-
-2. **Transport Protocol Selection**
-   - HTTP for synchronous request/response
-   - Service Bus for reliable async messaging
-   - Seamless fallback mechanisms
-
-3. **External System Integration**
-   - Abstraction of external dependencies
-   - Mock implementations for development
-   - Production-ready interfaces
-
-4. **Event-Driven Architecture**
-   - Pub/Sub patterns
-   - Event types and versioning
-   - Global observability via subscription
-
-5. **Observability and Monitoring**
-   - Structured logging
-   - Cross-cutting concerns
-   - Audit trails
-
-6. **Production Patterns**
-   - Error handling and retries
-   - Configuration management
-   - Graceful degradation
-
-## 🛠️ Extending the Examples
-
-### Add a New Agent
-
-1. Create new console project:
-   ```bash
-   dotnet new console -n AgentBus.Examples.YourAgent
-   ```
-
-2. Reference shared library:
-   ```xml
-   <ProjectReference Include="..\AgentBus.Examples.Shared\AgentBus.Examples.Shared.csproj" />
-   ```
-
-3. Choose transport:
-   ```csharp
-   // HTTP
-   var client = new HttpAgentBusClient(url, agentId);
-   
-   // Service Bus
-   var client = new ServiceBusAgentBusClient(url, connStr, agentId);
-   ```
-
-4. Register and subscribe:
-   ```csharp
-   await client.RegisterAgentAsync(registration);
-   var subscription = await client.SubscribeToAllEventsAsync();
-   ```
-
-5. Handle events and publish responses
-
-### Add a New Mock External System
-
-1. Create interface in `AgentBus.Examples.Shared/ExternalSystems/`:
-   ```csharp
-   public class MockYourSystemApi
-   {
-       public async Task<Data> QueryAsync(string id)
-       {
-           await Task.Delay(100); // Simulate latency
-           return mockData;
-       }
-   }
-   ```
-
-2. Use in agent:
-   ```csharp
-   var externalSystem = new MockYourSystemApi();
-   var data = await externalSystem.QueryAsync("123");
-   ```
-
-### Replace Mocks with Real Systems
-
-Replace mock constructors with real implementations:
-
-```csharp
-// Mock
-var orderSystem = new MockOrderSystemApi();
-
-// Real
-var orderSystem = new RealOrderSystemApi(apiKey, baseUrl);
-```
-
-The agent code remains unchanged!
-
-## 🚀 Production Deployment
-
-To move to production:
-
-### 1. Replace Mock External Systems
-```csharp
-// Replace mocks
-var orderSystem = new SapOrderApi(config);
-var inventoryDb = new CosmosDbInventoryRepository(client);
-var paymentGateway = new StripePaymentService(apiKey);
-var teamsApi = new MicrosoftGraphTeamsClient(credential);
-```
-
-### 2. Configure Azure Service Bus
-```bash
-# In Azure Portal, create Service Bus namespace
-# Copy connection string
+# Optional: Azure Service Bus (otherwise HTTP is used)
 export SERVICEBUS_CONNECTION_STRING="Endpoint=sb://..."
 ```
 
-### 3. Add Authentication
-```csharp
-// Use Managed Identity
-var credential = new DefaultAzureCredential();
-var client = new HttpAgentBusClient(url, agentId, credential);
-```
+### Start Agents
 
-### 4. Deploy as Containers
-```dockerfile
-FROM mcr.microsoft.com/dotnet/aspnet:9.0
-COPY --from=build /app .
-ENTRYPOINT ["dotnet", "AgentBus.Examples.CustomerExperience.dll"]
-```
-
-### 5. Configure Application Insights
-```csharp
-builder.Services.AddApplicationInsightsTelemetry();
-```
-
-### 6. Set Up Auto-Scaling
+**Option 1: All at once**
 ```bash
-az containerapp update --name customer-agent --min-replicas 1 --max-replicas 10
+# PowerShell
+.\examples\run-all-agents.ps1
+
+# Bash
+./examples/run-all-agents.sh
 ```
 
-## 📚 Related Documentation
+**Option 2: Individual agents**
+```bash
+dotnet run --project examples/AgentBus.Examples.CustomerExperience
+dotnet run --project examples/AgentBus.Examples.OperationsInventory
+dotnet run --project examples/AgentBus.Examples.FinancialAuth
+dotnet run --project examples/AgentBus.Examples.InternalComms
+```
 
-- [AgentBus Architecture](../docs/architecture/ARCHITECTURE.md)
-- [API Documentation](../specs/001-deployable-mvp/contracts/openapi.yaml)
-- [Deployment Guide](../docs/DEPLOYMENT.md)
-- [Testing Guide](../docs/TESTING_GUIDE.md)
+### Watch the Autonomous Behavior
 
-## 🐛 Troubleshooting
+When you run the agents, you'll see:
 
-### Agents can't connect to AgentBus
-- Ensure broker is running: `cd src/AgentBus.Broker && dotnet run`
-- Check URL: `http://localhost:5000`
-- Verify no firewall blocking
+```
+🤖 AUTONOMOUS CUSTOMER EXPERIENCE AGENT - LLM-Powered Decision Making
+══════════════════════════════════════════════════════════════════════
 
-### Service Bus not working
-- Check connection string is valid
-- Verify namespace exists in Azure
-- Check agents show "Transport: Azure Service Bus"
-- Fallback to HTTP is automatic if Service Bus unavailable
+✅ Autonomous agent registered
+🧠 Mode: AUTONOMOUS - LLM analyzes events and chooses actions
+🔧 Tools: OrderSystem (get/update/confirm), AgentBus (publish)
+📡 Transport: HTTP REST API
+💡 Set OPENAI_API_KEY for real LLM reasoning
 
-### No events received
-- Verify all agents are registered
-- Check subscription succeeded
-- Look for errors in broker logs
-- Ensure event types match
+👂 Listening for events... (Ctrl+C to stop)
 
-### Build errors
-- Run `dotnet restore` in examples directory
-- Ensure .NET 9.0 SDK installed
-- Check all project references
+📬 SIMULATING CUSTOMER INQUIRY
+─────────────────────────────────────────────────────────────────────
+
+══════════════════════════════════════════════════════════════════════
+📩 Agent customer-experience-agent analyzing event: customer.inquiry.received
+🧠 Agent customer-experience-agent reasoning about event...
+💭 Agent customer-experience-agent decision: I need to check the order status
+     to address the customer's urgent concern. Let me retrieve the order details.
+     [Calling get_order_details...]
+══════════════════════════════════════════════════════════════════════
+```
+
+## Key Differences from Microservices
+
+| Aspect | Microservices | Autonomous Agents |
+|--------|--------------|-------------------|
+| **Decision Logic** | Hardcoded if/then | LLM reasoning |
+| **Responses** | Deterministic | Context-dependent |
+| **Tool Usage** | Fixed workflow | Agent chooses tools |
+| **Coordination** | Choreographed | Emergent collaboration |
+| **Adaptability** | Requires code changes | Adapts via prompts |
+| **Intelligence** | Rule-based | AI-powered |
+
+## Real Autonomy Checklist
+
+✅ **LLM analyzes each event** - Not just pattern matching  
+✅ **Agent decides relevance** - Can ignore irrelevant events  
+✅ **Agent chooses tools** - Not prescribed workflows  
+✅ **Multi-step reasoning** - Plans and executes strategies  
+✅ **Conversational memory** - Maintains context across interactions  
+✅ **Goal-oriented** - Works toward objectives  
+✅ **Emergent coordination** - Agents collaborate without choreography  
+✅ **Adaptable via prompts** - Behavior changes without code changes  
+
+## Technical Implementation
+
+### BasedClass: AutonomousAgent
+
+```csharp
+public abstract class AutonomousAgent
+{
+    protected readonly Kernel Kernel;              // Semantic Kernel
+    protected readonly IChatCompletionService Chat; // LLM service
+    protected readonly ChatHistory ChatHistory;     // Conversational memory
+    
+    public async Task ProcessEventAsync(EventEnvelope evt)
+    {
+        // Present event to LLM for analysis
+        ChatHistory.AddUserMessage($"EVENT: {evt.EventType}...");
+        
+        // LLM reasons and autonomously calls tools
+        var response = await Chat.GetChatMessageContentAsync(
+            ChatHistory,
+            executionSettings: new OpenAIPromptExecutionSettings
+            {
+                ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions
+            },
+            Kernel);
+        
+        // LLM's decision is executed via function calling
+        ChatHistory.AddAssistantMessage(response.Content);
+    }
+}
+```
+
+### Plugins as Tools
+
+```csharp
+public class OrderSystemPlugin
+{
+    [KernelFunction("get_order_details")]
+    [Description("Retrieves order information. Use when you need order data.")]
+    public async Task<string> GetOrderDetailsAsync(string orderId)
+    {
+        // LLM decides WHEN to call this, not hardcoded logic
+    }
+}
+```
+
+## Benefits of True Autonomy
+
+1. **Emergence** - Complex behaviors emerge from simple agent interactions
+2. **Adaptability** - Change behavior by updating system prompts, not code
+3. **Intelligence** - Agents reason about trade-offs and context
+4. **Scalability** - Add new agents without choreographing interactions
+5. **Resilience** - Agents adapt to unexpected situations
+6. **Transparency** - LLM reasoning can be logged and explained
+
+## Next Steps
+
+1. **Add real LLM API key** to see true autonomous reasoning
+2. **Modify system prompts** to change agent behavior without code changes
+3. **Add new tools/plugins** - agents will discover and use them
+4. **Create new agents** - they'll autonomously coordinate
+5. **Analyze agent reasoning** - log LLM thought processes
 
 ---
 
-**🎉 You now have a complete, working multi-agent system demonstrating real AgentBus orchestration with production-ready patterns!**
+**This is not just inter-service communication. This is multi-agent AI systems with real autonomy.**

@@ -1,15 +1,28 @@
-# AgentBus Example Agents - Real Multi-Agent Orchestration
+# Quick Start: Autonomous Agents vs Microservices
 
-## 🎯 Overview
+## The Critical Distinction
 
-These examples demonstrate **production-ready multi-agent collaboration** with:
-- ✅ **Real inter-agent communication** through AgentBus (not mocked)
-- ✅ **Mixed transport protocols** (HTTP + Azure Service Bus)
-- ✅ **Mock external system integrations** (Order System, Inventory DB, Payment Gateway, Teams)
-- ✅ **Semantic Kernel** with multiple LLM models
-- ✅ **Event-driven architecture** with global observability
+### ❌ What You Asked Me NOT To Build
+```
+Microservices disguised as agents:
+  if (event.type == "customer.inquiry") {
+    orderData = orderService.get(orderId);
+    publish("inquiry.analyzed", orderData);
+  }
+```
+**This is choreographed, deterministic, hardcoded.**
 
-## 🚀 Quick Start
+### ✅ What We Actually Built
+```
+Autonomous agents with LLM reasoning:
+  LLM analyzes event context
+  LLM decides: "Is this relevant? What do I need?"
+  LLM chooses tools: get_order_details(...), publish_event(...)
+  LLM adapts response based on customer sentiment
+```
+**This is autonomous, intelligent, context-aware.**
+
+## Run the Examples
 
 ### 1. Start AgentBus Broker
 ```bash
@@ -17,166 +30,88 @@ cd src/AgentBus.Broker
 dotnet run
 ```
 
-### 2. Run All Agents
-```powershell
-.\examples\run-all-agents.ps1
-```
-
-### 3. Watch the Magic
-Observe agents communicating through AgentBus, querying external systems, and collaborating to process a customer order.
-
-## 🏗️ Architecture
-
-```
-Customer Inquiry → [Customer Agent] → Order System API (mock)
-                          ↓ (HTTP)
-                    [AgentBus Broker]
-                          ↓ (Service Bus if configured)
-                 [Operations Agent] → Inventory DB (mock)
-                          ↓ (HTTP)
-                    [AgentBus Broker]
-                          ↓ (HTTP)
-                  [Financial Agent] → Payment Gateway (mock)
-                          ↓ (HTTP)
-                    [AgentBus Broker]
-                          ↓ (Service Bus)
-              [Internal Comms Agent] → Teams API (mock)
-```
-
-## 🤖 The Agents
-
-| Agent | Transport | External System | LLM |
-|-------|-----------|-----------------|-----|
-| Customer Experience | HTTP | Order Management API | GPT-4o |
-| Operations & Inventory | Service Bus* | Inventory Database | GPT-4o-mini |
-| Financial Authorization | HTTP | Payment Gateway | Claude 3.5 Sonnet |
-| Internal Communications | Service Bus* | Microsoft Teams | GPT-4o |
-
-*Falls back to HTTP if Service Bus not configured
-
-## 📦 Mock External Systems
-
-All agents integrate with realistic mock external systems:
-
-- **MockOrderSystemApi** - Simulates SAP/Salesforce order management
-- **MockInventoryDatabase** - Simulates SQL/CosmosDB inventory data
-- **MockPaymentGateway** - Simulates Stripe/PayPal payment processing
-- **MockTeamsApi** - Simulates Microsoft Graph/Teams webhooks
-
-These mocks provide realistic latency, data, and behavior without requiring actual services.
-
-## 🔄 Event Flow Example
-
-1. **Customer**: "Add 2x SKU-789 to order ORD-2024-001"
-2. **Customer Agent**: Queries order system → publishes `customer.inquiry.received`
-3. **Operations Agent**: Checks inventory DB → reserves stock → publishes `operations.inventory.checked`
-4. **Financial Agent**: Calculates pricing → authorizes payment → publishes `order.confirmed`
-5. **Customer Agent**: Receives confirmation → responds to customer
-6. **Internal Comms**: Posts to Teams channels → creates audit log
-
-## 🎮 Running the Examples
-
-### Individual Agents
-
+### 2. Set API Key (Optional but Recommended)
 ```bash
-# Terminal 1 - Customer Experience (HTTP)
-cd examples/AgentBus.Examples.CustomerExperience
-dotnet run
-
-# Terminal 2 - Operations (Service Bus)
-cd examples/AgentBus.Examples.OperationsInventory
-dotnet run
-
-# Terminal 3 - Financial (HTTP)
-cd examples/AgentBus.Examples.FinancialAuth
-dotnet run
-
-# Terminal 4 - Internal Comms (Service Bus)
-cd examples/AgentBus.Examples.InternalComms
-dotnet run
-```
-
-### With Service Bus
-
-```bash
-export SERVICEBUS_CONNECTION_STRING="Endpoint=sb://..."
-```
-
-Without this, agents fall back to HTTP transport seamlessly.
-
-### With Real LLMs
-
-```bash
+# For REAL autonomous behavior
 export OPENAI_API_KEY="sk-..."
-export ANTHROPIC_API_KEY="sk-ant-..."
+
+# Without this, agents use mock responses
 ```
 
-Without keys, agents use mock responses.
+### 3. Run All Agents
+```bash
+# PowerShell
+.\examples\run-all-agents.ps1
 
-## 📊 What You'll See
-
-Each agent shows:
-- Registration with AgentBus
-- External system queries (DB, APIs)
-- Events sent/received
-- Processing logic
-- Teams notifications (Internal Comms agent)
-- Complete audit trail
-
-## 📁 Code Structure
-
-```
-examples/
-├── AgentBus.Examples.Shared/          # Shared infrastructure
-│   ├── HttpAgentBusClient.cs          # HTTP transport implementation
-│   ├── ServiceBusAgentBusClient.cs    # Service Bus implementation
-│   └── ExternalSystems/               # Mock integrations
-├── AgentBus.Examples.CustomerExperience/
-├── AgentBus.Examples.OperationsInventory/
-├── AgentBus.Examples.FinancialAuth/
-└── AgentBus.Examples.InternalComms/
+# Bash
+./examples/run-all-agents.sh
 ```
 
-## 💡 Key Learnings
+## See Autonomous Behavior
 
-1. **Transport Abstraction** - Same `IAgentBusClient` interface for HTTP and Service Bus
-2. **External System Mocking** - Realistic integration patterns without dependencies
-3. **Event-Driven Collaboration** - Agents don't call each other directly
-4. **Mixed Protocols** - HTTP and message queues coexist
-5. **Observability** - Internal Comms agent monitors everything
-6. **Production Patterns** - Error handling, retries, structured logging
+Watch agents reason:
+```
+📩 Agent analyzing event: customer.inquiry.received
+🧠 Agent reasoning about event...
+💭 Agent decision: "Customer is urgent ('I need it now'). 
+   Should check order status immediately. If delayed, 
+   coordinate with Operations agent."
+🔧 Agent chose tools:
+   - get_order_details("ORD-2024-001") 
+   - publish_event("customer.inquiry.analyzed")
+```
 
-## 🔧 Configuration
+## The 4 Autonomous Agents
 
-| Variable | Required | Default | Purpose |
-|----------|----------|---------|---------|
-| `AGENTBUS_URL` | Yes | `http://localhost:5000` | Broker endpoint |
-| `SERVICEBUS_CONNECTION_STRING` | No | - | Enable Service Bus transport |
-| `OPENAI_API_KEY` | No | - | Real LLM processing |
-| `ANTHROPIC_API_KEY` | No | - | Financial agent LLM |
+| Agent | Model | What Makes It Autonomous |
+|-------|-------|-------------------------|
+| **Customer Experience** | GPT-4o | Analyzes customer sentiment, chooses appropriate tools, adapts tone |
+| **Operations & Inventory** | GPT-4o-mini | Optimizes fulfillment strategy, balances cost vs speed |
+| **Financial Authorization** | GPT-4o | Assesses risk intelligently, balances fraud prevention vs UX |
+| **Internal Communications** | GPT-4o | Decides what's worth notifying, filters signal from noise |
 
-## 🎓 Educational Value
+## Real Autonomy Proof Points
 
-These examples teach:
-- Multi-agent system design
-- Event-driven architecture
-- Transport protocol selection
-- External system integration patterns
-- Mock vs. real service boundaries
-- Observability and monitoring
-- Production deployment considerations
+✅ **LLM makes decisions** - Not if/then logic  
+✅ **Agents choose tools** - Function calling, not workflows  
+✅ **Context-aware** - Same event, different responses based on context  
+✅ **Multi-step reasoning** - "First check X, then based on result, do Y or Z"  
+✅ **Goal-oriented** - Working toward objectives, not just reacting  
+✅ **Emergent coordination** - Agents collaborate without choreography  
+✅ **Conversational memory** - Remember previous interactions  
+✅ **Prompt-driven behavior** - Change behavior by updating system prompts  
 
-## 🚢 Production Deployment
+## Architecture Comparison
 
-To productionize:
-1. Replace mock external systems with real APIs
-2. Configure Azure Service Bus for all agents
-3. Deploy as containers to Azure Container Apps
-4. Add Azure Key Vault for secrets
-5. Enable Application Insights
-6. Set up managed identities
-7. Configure auto-scaling
+### Microservice (What This Is NOT):
+```
+Customer Service → [if customer.inquiry] → Get Order → Publish Result
+    └── Hardcoded flow, deterministic, dumb
+```
+
+### Autonomous Agent (What This IS):
+```
+Customer Service → LLM Analyzes → Decides Relevance → Chooses Tools → 
+Executes → Evaluates → Decides Next Action → Publishes (if needed)
+    └── AI-driven, context-aware, intelligent
+```
+
+## Key Files
+
+- `AutonomousAgent.cs` - Base class with LLM decision-making
+- `Plugins/*.cs` - Tools agents can choose to use
+- `*Agent/Program.cs` - Each agent's system prompt and capabilities
+
+## Validate True Autonomy
+
+Run agents and verify:
+
+1. **Not all events trigger actions** - Agents ignore irrelevant events
+2. **Different responses to similar events** - Based on context
+3. **Tool selection varies** - Agents choose different tool combinations
+4. **Reasoning is visible** - See LLM thought process in logs
+5. **Emergent coordination** - Agents collaborate without explicit choreography
 
 ---
 
-See full documentation in [examples/README.md](README.md)
+**This is multi-agent AI, not microservices wearing agent costumes.**

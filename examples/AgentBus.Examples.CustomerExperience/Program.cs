@@ -1,147 +1,158 @@
-using System.Text.Json;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
-using Serilog;
 using AgentBus.Examples.Shared;
 using AgentBus.Examples.Shared.ExternalSystems;
+using AgentBus.Examples.Shared.Plugins;
+using Microsoft.SemanticKernel;
+using Serilog;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
-    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .WriteTo.Console()
     .CreateLogger();
 
-Console.WriteLine("\n" + new string('═', 90));
-Console.WriteLine("🎯 CUSTOMER EXPERIENCE AGENT - E-COMMERCE PLATFORM");
-Console.WriteLine(new string('═', 90));
-
-// Configuration
-var agentId = "customer-experience-agent";
-var agentBusUrl = Environment.GetEnvironmentVariable("AGENTBUS_URL") ?? "http://localhost:5000";
-var openAiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-var modelId = "gpt-4o";
-
-Log.Information("Transport: HTTP");
-Log.Information("External System: Order Management System (Mock)");
-Log.Information("Model: {Model}", modelId);
-
-// Initialize Semantic Kernel if API key available
-Kernel? kernel = null;
-IChatCompletionService? chatService = null;
-
-if (!string.IsNullOrEmpty(openAiKey))
-{
-    var kernelBuilder = Kernel.CreateBuilder();
-    kernelBuilder.AddOpenAIChatCompletion(modelId, openAiKey);
-    kernel = kernelBuilder.Build();
-    chatService = kernel.GetRequiredService<IChatCompletionService>();
-    Log.Information("✅ Semantic Kernel initialized with real LLM");
-}
-else
-{
-    Log.Warning("⚠️  No OPENAI_API_KEY - using mock responses");
-}
-
-var systemPrompt = @"Extract order details from customer requests as JSON:
-{""intent"":""order_modification"",""order_id"":""ORD-XXX"",""product_sku"":""SKU-XXX"",""quantity"":N,""sentiment"":""positive|neutral|negative"",""urgency"":""low|normal|high""}";
-
-// Initialize external system
-var orderSystem = new MockOrderSystemApi();
-
-// Initialize AgentBus client (HTTP transport)
-using var agentBusClient = new HttpAgentBusClient(agentBusUrl, agentId);
+Console.WriteLine("\n" + new string('═', 100));
+Console.WriteLine("🤖 AUTONOMOUS CUSTOMER EXPERIENCE AGENT - LLM-Powered Decision Making");
+Console.WriteLine(new string('═', 100) + "\n");
 
 try
 {
-    // Register Agent
-    Log.Information("📝 Registering with AgentBus...");
-    await agentBusClient.RegisterAgentAsync(new AgentRegistration(
+    var agentId = "customer-experience-agent";
+    var brokerUrl = Environment.GetEnvironmentVariable("AGENTBUS_URL") ?? "http://localhost:5000";
+
+    // Initialize AgentBus client (HTTP transport)
+    using var agentBus = new HttpAgentBusClient(brokerUrl, agentId);
+
+    // Initialize external system (mocked)
+    var orderSystem = new MockOrderSystemApi();
+
+    // Register agent
+    var registration = new AgentRegistration(
         Id: agentId,
-        Name: "Customer Experience Agent",
-        Version: "1.0.0",
-        Capabilities: new[] { "customer-inquiry", "intent-classification", "order-management" },
-        MessageTypes: new MessageTypes(
-            Accepts: new[] { "order.confirmed" },
-            Emits: new[] { "customer.inquiry.received" }),
+        Name: "Autonomous Customer Experience Agent",
+        Version: "2.0.0",
+        Capabilities: new[] { "autonomous-reasoning", "customer-service", "llm-decisions" },
+        MessageTypes: new MessageTypes(new[] { "customer.*", "order.confirmed" }, new[] { "customer.inquiry.analyzed" }),
         Communication: new CommunicationCapabilities(false, true, true),
-        EventsPublished: new[] { "customer.inquiry.received" },
-        Metadata: new AgentMetadata("customer-service", "demo", new[] { "http-transport" })));
+        EventsPublished: new[] { "customer.inquiry.analyzed" },
+        Metadata: new AgentMetadata("demo", "dev", new[] { "autonomous", "http-transport" }));
 
-    Log.Information("✅ Registered!");
+    await agentBus.RegisterAgentAsync(registration);
 
-    // Subscribe to global events
-    Log.Information("🔔 Subscribing to global events...");
-    var subscription = await agentBusClient.SubscribeToAllEventsAsync();
-    Log.Information("✅ Subscribed: {SubscriptionId}", subscription.SubscriptionId);
+    // Subscribe to relevant events
+    var subscription = await agentBus.SubscribeToAllEventsAsync();
 
-    Console.WriteLine(new string('═', 90) + "\n");
+    // Create autonomous agent
+    var agent = new CustomerExperienceAgent(agentId, agentBus, orderSystem, Log.Logger);
 
-    // Simulate customer inquiry
+    Log.Information("✅ Autonomous agent registered");
+    Log.Information("🧠 Mode: AUTONOMOUS - LLM analyzes events and chooses actions");
+    Log.Information(" 🔧 Tools: OrderSystem (get/update/confirm), AgentBus (publish)");
+    Log.Information("📡 Transport: HTTP REST API");
+    Log.Information("💡 Set OPENAI_API_KEY for real LLM reasoning\n");
+
+    // Simulate a customer inquiry
     _ = Task.Run(async () =>
     {
-        await Task.Delay(3000);
-        await SimulateCustomerInquiry(agentBusClient, orderSystem, chatService, systemPrompt);
+        await Task.Delay(2000);
+        Console.WriteLine("📬 SIMULATING CUSTOMER INQUIRY");
+        Console.WriteLine(new string('─', 100));
+        await agentBus.PublishEventAsync("customer.inquiry.received", new
+        {
+            customerId = "CUST-001",
+            orderId = "ORD-2024-001",
+            message = "I need to check my order status urgently",
+            sentiment = "concerned"
+        });
     });
 
-    // Listen for events
+    // Event processing loop
     var cts = new CancellationTokenSource();
     Console.CancelKeyPress += (s, e) => { e.Cancel = true; cts.Cancel(); };
 
-    await ListenForEventsAsync(agentBusClient, chatService, subscription.SubscriptionId, cts.Token);
+    Log.Information("👂 Listening for events... (Ctrl+C to stop)\n");
+
+    while (!cts.Token.IsCancellationRequested)
+    {
+        try
+        {
+            var eventEnvelope = await agentBus.ReceiveEventAsync(
+                subscription.SubscriptionId, 
+                maxWaitSeconds: 30, 
+                cts.Token);
+            
+            if (eventEnvelope == null) continue;
+
+            Console.WriteLine(new string('═', 100));
+            
+            // AUTONOMOUS PROCESSING - Agent decides what to do
+            await agent.ProcessEventAsync(eventEnvelope);
+            
+            Console.WriteLine(new string('═', 100) + "\n");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Error(ex, "Error processing event");
+        }
+    }
+
+    Log.Information("\n👋 Shutting down...");
 }
 catch (HttpRequestException ex)
 {
-    Log.Fatal(ex, "❌ Cannot connect to AgentBus at {Url}", agentBusUrl);
+    Log.Fatal(ex, "❌ Cannot connect to AgentBus");
     Log.Information("💡 Start broker: cd src/AgentBus.Broker && dotnet run");
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "❌ Fatal error");
+    Log.Fatal(ex, "Fatal error");
+}
+finally
+{
+    await Log.CloseAndFlushAsync();
 }
 
-static async Task SimulateCustomerInquiry(IAgentBusClient client, MockOrderSystemApi orderSystem, IChatCompletionService? chat, string prompt)
+/// <summary>
+/// TRULY AUTONOMOUS AGENT - Uses LLM to make decisions, not hardcoded logic
+/// </summary>
+class CustomerExperienceAgent : AutonomousAgent
 {
-    var msg = "Hi! I'd like to add 2 more Premium Widget Plus (SKU-789) to order ORD-2024-001. Can you check availability?";
-    Console.WriteLine("\n📬 NEW CUSTOMER INQUIRY\n" + new string('━', 90));
-    Console.WriteLine($"💬 {msg}\n" + new string('━', 90));
+    public CustomerExperienceAgent(
+        string agentId,
+        IAgentBusClient agentBus,
+        MockOrderSystemApi orderSystem,
+        ILogger logger)
+        : base(
+            agentId,
+            systemPrompt: @"You are an AUTONOMOUS Customer Experience Agent with REAL decision-making power.
 
-    var order = await orderSystem.GetOrderAsync("ORD-2024-001");
-    if (order != null)
+YOUR ROLE: Help customers with orders, not by following scripts, but by REASONING about each situation.
+
+TOOLS YOU CAN CHOOSE TO USE:
+- OrderSystem.get_order_details: Retrieve order information
+- OrderSystem.update_order: Modify an order (add items)
+- OrderSystem.confirm_order_fulfillment: Final order confirmation (needs payment auth code)
+- AgentBus.publish_event: Communicate with other agents
+
+HOW TO BE AUTONOMOUS:
+1. ANALYZE each event: Is it relevant? What does the customer need?
+2. DECIDE: What information do I need? Which tools help?
+3. EXECUTE: Call the tools you choose
+4. COORDINATE: If you need help from other agents (Operations for inventory, Financial for payment), publish events
+
+EXAMPLE - Customer asks ""Where's my order?"":
+  Your reasoning: ""Need order details. If there's an issue, may need other agents' help.""
+  Your actions: 1) get_order_details, 2) Analyze status, 3) If inventory issue, publish 'customer.inquiry.analyzed' for Operations agent
+
+You are NOT a microservice. You THINK and DECIDE. Use tools wisely.",
+            agentBus,
+            logger)
     {
-        Console.WriteLine($"\n📦 Current Order: {order.OrderId} | Total: ${order.Total:F2} | Items: {order.Items.Length}");
+        Kernel.Plugins.AddFromObject(new OrderSystemPlugin(orderSystem), "OrderSystem");
     }
 
-    await client.PublishEventAsync("customer.inquiry.received", new
-    {
-        customerId = "C12345",
-        orderId = "ORD-2024-001",
-        requestedSku = "SKU-789",
-        requestedQuantity = 2,
-        productName = "Premium Widget Plus"
-    });
+    protected override string GetModelId() => "gpt-4o";
 
-    Console.WriteLine("\n✅ Published: customer.inquiry.received\n" + new string('═', 90));
-}
-
-static async Task ListenForEventsAsync(IAgentBusClient client, IChatCompletionService? chat, string subId, CancellationToken ct)
-{
-    Log.Information("👂 Listening...\n");
-    while (!ct.IsCancellationRequested)
+    protected override void ConfigurePlugins(Kernel kernel)
     {
-        try
-        {
-            var evt = await client.ReceiveEventAsync(subId, 30, ct);
-            if (evt != null)
-            {
-                Console.WriteLine($"\n📨 {evt.EventType} from {evt.Source} at {evt.Timestamp:HH:mm:ss}");
-                if (evt.EventType == "order.confirmed")
-                {
-                    Console.WriteLine("🎉 Order Confirmed!");
-                    Console.WriteLine($"📦 {JsonSerializer.Serialize(evt.Data, new JsonSerializerOptions { WriteIndented = true })}");
-                    Console.WriteLine("\n💬 Customer Response: Great news! Your order update is confirmed and payment authorized.");
-                }
-            }
-        }
-        catch (OperationCanceledException) { break; }
-        catch (Exception ex) { Log.Error(ex, "Error"); await Task.Delay(2000, ct); }
+        kernel.Plugins.AddFromObject(new AgentBusPlugin(AgentBus, AgentId), "AgentBus");
     }
 }
