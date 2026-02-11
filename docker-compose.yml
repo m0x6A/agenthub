@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # Cosmos DB Emulator - Provides Azure Cosmos DB API locally
+  cosmosdb:
+    image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest
+    environment:
+      AZURE_COSMOS_EMULATOR_PARTITION_COUNT: 4
+      AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE: "false"
+    ports:
+      - "8081:8081"
+      - "10251:10251"
+      - "10252:10252"
+      - "10253:10253"
+      - "10254:10254"
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - cosmosdb_data:/data/db
+    labels:
+      - "com.example.service=cosmosdb"
+
+  # Azure Service Bus Emulator - Provides Service Bus locally (preview)
+  servicebus:
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    ports:
+      - "5672:5672"
+      - "9600:9600"
+    environment:
+      ACCEPT_EULA: "Y"
+    labels:
+      - "com.example.service=servicebus"
+
+  # LocalStack - Optional: provides AWS S3, DynamoDB, etc. (if needed for other services)
+  # Uncomment if you need additional cloud service emulation
+  # localstack:
+  #   image: localstack/localstack:latest
+  #   ports:
+  #     - "4566:4566"
+  #   environment:
+  #     SERVICES: s3,dynamodb
+  #     DEBUG: 1
+
+volumes:
+  cosmosdb_data:

@@ -11,7 +11,7 @@ Build a production-ready message broker platform that enables autonomous agents 
 
 ## Technical Context
 
-**Language/Version**: C# 13 / .NET 9 (LTS)  
+**Language/Version**: C# 14 / .NET 10 (LTS)  
 **Primary Dependencies**: ASP.NET Core Minimal APIs, Azure.Messaging.ServiceBus, Microsoft.Azure.Cosmos, Microsoft.Identity.Web, OpenTelemetry SDK, Serilog  
 **Storage**: Azure Cosmos DB NoSQL API (Serverless) for agent registry, Azure Service Bus (Standard tier) for message/event queuing  
 **Testing**: xUnit 2.x, Reqnroll 2.x (Gherkin BDD), Shouldly (assertions), NSubstitute (mocking), Bogus (test data), WebApplicationFactory (integration)  
@@ -31,7 +31,7 @@ Build a production-ready message broker platform that enables autonomous agents 
 - [x] **Vertical Slices**: Each API feature (RegisterAgent, SendMessage, PublishEvent, etc.) implemented as complete vertical slice with dedicated Endpoint/Request/Response/Handler/Validator in own directory.
 - [x] **Test-First**: BDD scenarios defined in spec.md (5 user stories with acceptance criteria). Implementation follows: write .feature files → user approval → failing tests → implementation → refactor cycle.
 - [x] **Security by Identity**: Entra ID JWT authentication with User-Assigned Managed Identities. Zero secrets - Broker API validates `roles` claim on every request. No API keys, certificates, or passwords.
-- [x] **Modern C# Standards**: .NET 9 + C# 13 with nullable references, file-scoped namespaces, primary constructors for DI, records for DTOs, sealed by default, TimeProvider injection for testability, CancellationToken on all async methods, Central Package Management.
+- [x] **Modern C# Standards**: .NET 10 + C# 14 with nullable references, file-scoped namespaces, primary constructors for DI, records for DTOs, sealed by default, TimeProvider injection for testability, CancellationToken on all async methods, Central Package Management.
 - [x] **Observability**: OpenTelemetry SDK to Application Insights, Serilog structured JSON logging with correlation IDs, custom metrics (agents_registered, messages_per_second, dlq_depth), health endpoints (/health, /health/ready).
 - [x] **Enterprise-Ready**: Serverless-first (Container Apps Consumption, Cosmos DB Serverless, Service Bus Standard), Bicep IaC, GitHub Actions CI/CD, API versioning (/api/v1/), documented enterprise upgrade paths (Premium Service Bus, multi-region, VNET).
 

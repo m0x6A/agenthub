@@ -20,7 +20,7 @@
 
 - [ ] T001 Create solution file AgentBus.sln at repository root
 - [ ] T002 Create Directory.Packages.props for Central Package Management at repository root
-- [ ] T003 Create .editorconfig with C# 13 standards at repository root
+- [ ] T003 Create .editorconfig with C# 14 standards at repository root
 - [ ] T004 Create src/AgentBus.Broker/AgentBus.Broker.csproj with .NET 9 target framework
 - [ ] T005 [P] Create tests/AgentBus.Broker.Tests/AgentBus.Broker.Tests.csproj with xUnit, Reqnroll, Shouldly, NSubstitute
 - [ ] T006 [P] Create Directory.Build.props with TreatWarningsAsErrors, nullable references enabled

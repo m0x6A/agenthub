@@ -655,7 +655,7 @@ AgentBus/
 ├── Directory.Build.props                      # Shared build properties
 ├── Directory.Packages.props                   # Central package management
 ├── .editorconfig                              # C# coding standards
-└── global.json                                # Pin .NET 9 SDK
+└── global.json                                # Pin .NET 10 SDK
 ```
 
 #### 4.7.4 Module Registration Pattern
@@ -714,7 +714,7 @@ app.Run();
 
 | Standard | Enforcement |
 |---|---|
-| **Target Framework** | .NET 9 (LTS), C# 13 |
+| **Target Framework** | .NET 10 (LTS), C# 14 |
 | **Nullable reference types** | Enabled globally (`<Nullable>enable</Nullable>`) |
 | **Implicit usings** | Enabled |
 | **File-scoped namespaces** | Required |
@@ -736,8 +736,8 @@ app.Run();
 ```xml
 <Project>
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
-    <LangVersion>13</LangVersion>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -1292,7 +1292,7 @@ Agent A publishes       │                     │                  │
 | **Modular Monolith over Microservices** | Single deployable unit = simpler ops, debugging, transactions; module boundaries enable future extraction | All modules share a process — a bug in one can affect others; mitigated by module isolation discipline |
 | **Vertical Slices over Layered Architecture** | Each feature is self-contained; no shotgun surgery across layers; easy to onboard new developers | Some code duplication between slices (e.g., similar validation); acceptable trade-off for independence |
 | **Reqnroll (Gherkin BDD) over plain integration tests** | Living documentation; stakeholder-readable specs; drives outside-in design | Extra ceremony for simple CRUD; justified for a system with complex agent interaction workflows |
-| **.NET 9 / C# 13** | Latest LTS with primary constructors, collection expressions, perf improvements | Agents using older .NET must use the SDK (HTTP) — no direct framework dependency |
+| **.NET 10 / C# 14** | Latest LTS with primary constructors, collection expressions, perf improvements | Agents using older .NET must use the SDK (HTTP) — no direct framework dependency |
 
 ---
 
@@ -1311,7 +1311,7 @@ Agent A publishes       │                     │                  │
 ## 12. Getting Started — Implementation Order
 
 ### Phase 1: Solution Scaffold & Foundation (Week 1-2)
-1. Create .NET 9 solution with modular monolith structure (`Directory.Build.props`, `global.json`, `.editorconfig`)
+1. Create .NET 10 solution with modular monolith structure (`Directory.Build.props`, `global.json`, `.editorconfig`)
 2. Set up Shared Kernel project (domain primitives, `Result<T>`, abstractions)
 3. Set up test projects: `AgentBus.Tests.Unit` (xUnit + Shouldly), `AgentBus.Tests.BDD` (Reqnroll + Gherkin)
 4. Set up Bicep infrastructure (Cosmos DB, Service Bus, Container Apps, Identities)
@@ -1360,8 +1360,8 @@ Agent A publishes       │                     │                  │
 **Software Architecture:**
 - [Vertical Slice Architecture — Jimmy Bogard](https://www.jimmybogard.com/vertical-slice-architecture/)
 - [Modular Monolith — Milan Jovanović](https://www.milanjovanovic.tech/blog/what-is-a-modular-monolith)
-- [.NET 9 — What's New](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-9)
-- [C# 13 — What's New](https://learn.microsoft.com/en-us/dotnet/csharp/whats-new/csharp-13)
+- [.NET 10 — What's New](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10)
+- [C# 14 — What's New](https://learn.microsoft.com/en-us/dotnet/csharp/whats-new/csharp-14)
 
 **Testing:**
 - [Reqnroll — BDD for .NET (Gherkin)](https://reqnroll.net/)
