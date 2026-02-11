@@ -1,6 +1,7 @@
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using System.Text.Json;
@@ -39,19 +40,37 @@ public abstract class AutonomousAgent
         // Build Semantic Kernel with plugins
         var kernelBuilder = Kernel.CreateBuilder();
         
-        // Use mock chat completion if no API key available
+        // Try Azure OpenAI first (provisioned by Aspire), then fallback to OpenAI API key, then mock
+        var azureOpenAiEndpoint = Environment.GetEnvironmentVariable("ConnectionStrings__openai__Endpoint")
+            ?? Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT");
         var openAiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-        if (!string.IsNullOrEmpty(openAiKey))
+        
+        if (!string.IsNullOrEmpty(azureOpenAiEndpoint))
         {
+            // Use Azure OpenAI (provisioned by Aspire with Managed Identity)
+            kernelBuilder.AddAzureOpenAIChatCompletion(
+                deploymentName: GetModelId(),
+                endpoint: azureOpenAiEndpoint,
+                credentials: new Azure.Identity.DefaultAzureCredential());
+            
+            _logger.Information("Using Azure OpenAI at {Endpoint}", azureOpenAiEndpoint);
+        }
+        else if (!string.IsNullOrEmpty(openAiKey))
+        {
+            // Use OpenAI API key
             kernelBuilder.AddOpenAIChatCompletion(
                 modelId: GetModelId(),
                 apiKey: openAiKey);
+            
+            _logger.Information("Using OpenAI API with key");
         }
         else
         {
             // Mock service for demonstration
             kernelBuilder.Services.AddSingleton<IChatCompletionService>(
                 new MockChatCompletionService(_logger));
+            
+            _logger.Warning("Using mock LLM - set OPENAI_API_KEY or run with Aspire for real LLM");
         }
 
         Kernel = kernelBuilder.Build();

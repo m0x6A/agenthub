@@ -65,22 +65,29 @@ https://localhost:17238
 ├──────────────────────────────────────────────────────────────┤
 │                                                                │
 │  ┌─────────────────┐         ┌──────────────────────┐        │
-│  │ Service Bus     │◄────────┤  AgentBus.Broker     │        │
-│  │ Emulator        │         │  (localhost:5000)    │        │
+│  │ Azure OpenAI    │         │ Service Bus Emulator │        │
+│  │ (LLM)           │         │ (Local Dev)          │        │
 │  └─────────────────┘         └──────────────────────┘        │
-│           ▲                            ▲                       │
+│           │                            ▲                       │
 │           │                            │                       │
+│           ▼                            │                       │
+│  ┌──────────────────────────┐         │                       │
+│  │  AgentBus.Broker         │◄────────┘                       │
+│  │  (localhost:5000)        │                                 │
+│  └──────────────────────────┘                                 │
+│           ▲                                                    │
+│           │                                                    │
 │           │    ┌───────────────────────┴────────┐             │
 │           │    │                                 │             │
 │  ┌────────┴────┴───┐     ┌──────────────────────▼──┐         │
 │  │ Operations &     │     │  Customer Experience    │         │
-│  │ Inventory Agent  │     │  Agent (HTTP)           │         │
-│  │ (Service Bus)    │     └─────────────────────────┘         │
+│  │ Inventory Agent  │     │  Agent (HTTP + LLM)     │         │
+│  │ (SB + LLM)       │     └─────────────────────────┘         │
 │  └──────────────────┘                                          │
 │                                                                │
 │  ┌──────────────────┐     ┌─────────────────────────┐        │
 │  │ Internal Comms   │     │  Financial Auth Agent   │        │
-│  │ Agent (SB)       │     │  (HTTP)                 │        │
+│  │ Agent (SB + LLM) │     │  (HTTP + LLM)           │        │
 │  └──────────────────┘     └─────────────────────────┘        │
 │                                                                │
 │  ┌─────────────────────────────────────────────────┐         │
@@ -193,7 +200,48 @@ azd up
 
 ## Configuration
 
-### Environment Variables
+### Azure OpenAI Configuration
+
+The autonomous agents use Azure OpenAI for LLM-powered decision making. Aspire automatically provisions the Azure OpenAI service and configures connectivity.
+
+#### Required Model Deployments
+
+After the Azure OpenAI service is provisioned, you need to create these model deployments:
+
+```bash
+# Via Azure Portal:
+# 1. Go to Azure OpenAI resource
+# 2. Navigate to "Deployments"
+# 3. Create deployments:
+#    - Name: gpt-4o
+#      Model: gpt-4o
+#      Version: 2024-08-06
+#    
+#    - Name: gpt-4o-mini
+#      Model: gpt-4o-mini
+#      Version: 2024-07-18
+```
+
+#### Agent Model Usage
+
+- **Customer Experience Agent**: gpt-4o (sophisticated customer interaction reasoning)
+- **Operations & Inventory Agent**: gpt-4o-mini (cost-effective structured operations)
+- **Financial Authorization Agent**: gpt-4o (strong reasoning for financial decisions)
+- **Internal Communications Agent**: gpt-4o (communication and social dynamics)
+
+#### Local Development
+
+For local development without Azure OpenAI:
+1. Set `OPENAI_API_KEY` environment variable to use OpenAI API
+2. Or run without - agents will use mock LLM responses for testing
+
+When running with Aspire, agents automatically:
+- Detect Azure OpenAI connection (provided via `ConnectionStrings__openai__Endpoint`)
+- Use Managed Identity for authentication (no API keys needed)
+- Fall back to `OPENAI_API_KEY` if Azure OpenAI isn't available
+- Use mock LLM as final fallback for offline testing
+
+The `AutonomousAgent` base class handles this connection logic automatically.
 
 Aspire automatically injects:
 - `AGENTBUS_URL` - Broker endpoint (from service discovery)
