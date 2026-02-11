@@ -24,6 +24,8 @@ Console.WriteLine("📦 Adding AgentBus.Broker project...");
 var broker = builder.AddProject<Projects.AgentBus_Broker>("agentbus-broker")
     .WithReference(cosmosDb)
     .WithReference(serviceBus)
+    .WaitFor(cosmosDb)
+    .WaitFor(serviceBus)
     .WithHttpEndpoint(port: 5000, name: "http")
     .WithEnvironment("CosmosDb:DatabaseName", "agentbus");
 Console.WriteLine("✅ Added broker with references");
@@ -33,6 +35,7 @@ Console.WriteLine("📦 Adding autonomous agents...");
 var customerAgent = builder.AddProject<Projects.AgentBus_Examples_CustomerExperience>("customer-experience-agent")
     .WithReference(broker)
     .WithReference(openai)  // Provides Azure OpenAI connection
+    .WaitFor(broker)
     .WithEnvironment("AGENTBUS_URL", broker.GetEndpoint("http"));
 Console.WriteLine("✅ Added Customer Experience Agent");
 
@@ -41,6 +44,7 @@ var operationsAgent = builder.AddProject<Projects.AgentBus_Examples_OperationsIn
     .WithReference(broker)
     .WithReference(serviceBus)
     .WithReference(openai)
+    .WaitFor(broker)
     .WithEnvironment("AGENTBUS_URL", broker.GetEndpoint("http"));
 Console.WriteLine("✅ Added Operations & Inventory Agent");
 
@@ -48,6 +52,7 @@ Console.WriteLine("✅ Added Operations & Inventory Agent");
 var financialAgent = builder.AddProject<Projects.AgentBus_Examples_FinancialAuth>("financial-authorization-agent")
     .WithReference(broker)
     .WithReference(openai)
+    .WaitFor(broker)
     .WithEnvironment("AGENTBUS_URL", broker.GetEndpoint("http"));
 Console.WriteLine("✅ Added Financial Authorization Agent");
 
@@ -56,6 +61,7 @@ var commsAgent = builder.AddProject<Projects.AgentBus_Examples_InternalComms>("i
     .WithReference(broker)
     .WithReference(serviceBus)
     .WithReference(openai)
+    .WaitFor(broker)
     .WithEnvironment("AGENTBUS_URL", broker.GetEndpoint("http"));
 Console.WriteLine("✅ Added Internal Communications Agent");
 
@@ -66,6 +72,7 @@ Console.WriteLine("📦 Adding Logistics Coordination Agents...");
 var shippingAgent = builder.AddProject<Projects.AgentBus_Examples_LogisticsCoordination>("shipping-agent")
     .WithReference(broker)
     .WithReference(openai)
+    .WaitFor(broker)
     .WithEnvironment("AGENTBUS_URL", broker.GetEndpoint("http"))
     .WithEnvironment("AGENT_MODE", "ShippingAgent");
 Console.WriteLine("✅ Added Shipping Agent");
@@ -74,6 +81,7 @@ Console.WriteLine("✅ Added Shipping Agent");
 var warehouseAgent = builder.AddProject<Projects.AgentBus_Examples_LogisticsCoordination>("warehouse-lead-agent")
     .WithReference(broker)
     .WithReference(openai)
+    .WaitFor(broker)
     .WithEnvironment("AGENTBUS_URL", broker.GetEndpoint("http"))
     .WithEnvironment("AGENT_MODE", "WarehouseLead");
 Console.WriteLine("✅ Added Warehouse Lead Agent");
@@ -82,6 +90,7 @@ Console.WriteLine("✅ Added Warehouse Lead Agent");
 Console.WriteLine("📦 Adding Logistics Coordination UI...");
 var logisticsUI = builder.AddProject<Projects.AgentBus_Examples_LogisticsUI>("logistics-ui")
     .WithReference(broker)
+    .WaitFor(broker)
     .WithEnvironment("AgentBusUrl", broker.GetEndpoint("http"))
     .WithHttpEndpoint(port: 5001, name: "http");
 Console.WriteLine("✅ Added Logistics Coordination UI");
