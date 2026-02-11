@@ -76,23 +76,36 @@ Watch as they send each other messages asking questions, providing data, and col
 
 ## Implementation Details
 
+### Real Direct Messaging (Not Simulated)
+Each agent uses real AgentBus infrastructure for direct agent-to-agent communication:
+
+1. **Agent Registry Lookup**: Sender validates recipient exists via `/api/v1/agents/{agentId}`
+2. **Direct Message Queue**: Message is sent to recipient's dedicated inbox queue
+3. **Request-Response Pattern**: Sender waits for actual response from recipient (45-second timeout)
+4. **Inbox Queue**: Each agent has its own inbox queue (`agent-{agentId}-inbox`) for receiving direct messages
+
 ### Receiving Direct Messages
-Each agent listens on its dedicated inbox queue for direct messages from other agents:
-```
-agentBus.ReceiveDirectMessage(timeout: 30 seconds)
+Each agent maintains a listener for direct messages from other agents:
+```csharp
+// Agent listens on its inbox queue for direct messages
+var directMessage = await agentBus.ReceiveDirectMessageAsync(maxWaitSeconds: 45);
 ```
 
 ### Sending Direct Messages with Natural Language
-When an agent needs help, it sends a message to another agent's queue:
-```
-agentBus.SendDirectMessageAsync(
-  to: "warehouse-lead-agent",
-  message: "Can you help me with an urgent request..."
-)
+When an agent needs help, it sends a natural language message and waits for response:
+```csharp
+// Shipping Agent asks Warehouse Agent for help
+var response = await agentBus.SendDirectMessageAsync(
+    recipientAgentId: "warehouse-lead-agent", 
+    message: "Can you help me with consolidation feasibility?..."
+);
+
+// Waits up to 45 seconds for actual response
+directMessage = await agentBus.ReceiveDirectMessageAsync(maxWaitSeconds: 45);
 ```
 
 ### Chat History Across Messages
-Each agent maintains a conversation context, so as messages go back and forth, they remember the context of the discussion.
+Each agent maintains conversation context, so as messages go back and forth, they remember the discussion and adapt their responses accordingly.
 
 ## Natural Language Flow
 

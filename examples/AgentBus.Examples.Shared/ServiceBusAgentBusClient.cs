@@ -149,6 +149,80 @@ public class ServiceBusAgentBusClient : IAgentBusClient
         }
     }
 
+    public async Task<AgentRegistration?> GetAgentAsync(string agentId)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"/api/agents/{agentId}");
+            
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                return null;
+            
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<AgentRegistration>(_jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[ServiceBus] Error getting agent {AgentId}", agentId);
+            throw;
+        }
+    }
+
+    public async Task SendDirectMessageAsync(string recipientAgentId, string message)
+    {
+        try
+        {
+            var envelope = new
+            {
+                messageId = Guid.NewGuid().ToString(),
+                from = _agentId,
+                to = recipientAgentId,
+                message,
+                timestamp = DateTime.UtcNow
+            };
+
+            var content = new StringContent(
+                JsonSerializer.Serialize(envelope, _jsonOptions),
+                Encoding.UTF8,
+                "application/json");
+
+            var response = await _httpClient.PostAsync("/api/messages/send", content);
+            response.EnsureSuccessStatusCode();
+            
+            Log.Information("[ServiceBus] Direct message sent from {From} to {To}", _agentId, recipientAgentId);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[ServiceBus] Error sending direct message to {Agent}", recipientAgentId);
+            throw;
+        }
+    }
+
+    public async Task<DirectMessage?> ReceiveDirectMessageAsync(int maxWaitSeconds, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync(
+                $"/api/messages/receive?agentId={_agentId}&maxWaitSeconds={maxWaitSeconds}",
+                cancellationToken);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+                return null;
+
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<DirectMessage>(_jsonOptions, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[ServiceBus] Error receiving direct message");
+            throw;
+        }
+    }
+
     public void Dispose()
     {
         _receiver?.DisposeAsync().AsTask().Wait();
