@@ -237,61 +237,62 @@ app.MapPost("/api/scenarios/inventory-issue", async () =>
             error = ex.Message
         }, statusCode: 500);
     }
-
-    app.MapPost("/api/scenarios/cost-optimization", async () =>
-    {
-        try
-        {
-            var agentBus = app.Services.GetRequiredService<IAgentBusClient>();
-
-            await agentBus.PublishEventAsync("global", new
-            {
-                requestId = "SR-" + Guid.NewGuid().ToString()[..8],
-                productName = "Bulk Order Widgets",
-                quantity = 500,
-                destination = "Melbourne",
-                requiredHours = 168, // 7 days
-                customerTier = "Enterprise",
-                budget = "flexible",
-                urgency = "LOW",
-                notes =
-                    "Large bulk order. No rush. Looking for cost optimization opportunities through consolidation."
-            });
-
-            return Results.Ok(new
-            {
-                scenario = "cost-optimization",
-                status = "triggered",
-                message = "Published global event - watch for agent responses!"
-            });
-        }
-        catch (TimeoutException ex)
-        {
-            return Results.Json(new
-            {
-                scenario = "cost-optimization",
-                status = "timeout",
-                message = "Event publish timed out but may have been delivered. Check events panel.",
-                error = ex.Message
-            }, statusCode: 202);
-        }
-        catch (Exception ex)
-        {
-            return Results.Json(new
-            {
-                scenario = "cost-optimization",
-                status = "error",
-                message = "Failed to publish event",
-                error = ex.Message
-            }, statusCode: 500);
-        }
-
 });
-app.MapPost("/api/events/clear", () =>
-    {
-        // Events are managed by the background service, just return ok
-        // In a real app, you'd clear the queue
-        return Results.Ok(new { status = "cleared (restart to actually clear)" });
-    });
 
-    app.Run();
+app.MapPost("/api/scenarios/cost-optimization", async () =>
+{
+    try
+    {
+        var agentBus = app.Services.GetRequiredService<IAgentBusClient>();
+
+        await agentBus.PublishEventAsync("global", new
+        {
+            requestId = "SR-" + Guid.NewGuid().ToString()[..8],
+            productName = "Bulk Order Widgets",
+            quantity = 500,
+            destination = "Melbourne",
+            requiredHours = 168, // 7 days
+            customerTier = "Enterprise",
+            budget = "flexible",
+            urgency = "LOW",
+            notes =
+                "Large bulk order. No rush. Looking for cost optimization opportunities through consolidation."
+        });
+
+        return Results.Ok(new
+        {
+            scenario = "cost-optimization",
+            status = "triggered",
+            message = "Published global event - watch for agent responses!"
+        });
+    }
+    catch (TimeoutException ex)
+    {
+        return Results.Json(new
+        {
+            scenario = "cost-optimization",
+            status = "timeout",
+            message = "Event publish timed out but may have been delivered. Check events panel.",
+            error = ex.Message
+        }, statusCode: 202);
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new
+        {
+            scenario = "cost-optimization",
+            status = "error",
+            message = "Failed to publish event",
+            error = ex.Message
+        }, statusCode: 500);
+    }
+});
+
+app.MapPost("/api/events/clear", () =>
+{
+    // Events are managed by the background service, just return ok
+    // In a real app, you'd clear the queue
+    return Results.Ok(new { status = "cleared (restart to actually clear)" });
+});
+
+app.Run();
