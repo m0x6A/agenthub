@@ -88,7 +88,7 @@ Each agent is built on:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## The Four Autonomous Agents
+## The Autonomous Agents
 
 ### 1. Customer Experience Agent
 **Model**: GPT-4o (best reasoning for customer interaction)  
@@ -232,6 +232,64 @@ Actions Chosen by LLM:
 5. Call publish_event("audit.log.created") for compliance
 ```
 
+---
+
+### 5. & 6. Logistics Coordination: Shipping & Warehouse Agents
+
+**Special Example: Two Equal Agents in Collaborative Problem-Solving**
+
+#### Shipping Agent
+**Model**: GPT-4o-mini (cost-effective route planning)  
+**Role**: Route planning, carrier selection, cost optimization  
+**Key Feature**: **Asks for help when it needs inventory/logistics insights**
+
+**Autonomous Behaviors**:
+- Analyzes shipping requests and determines routing strategy
+- Evaluates carrier options and cost trade-offs
+- Recognizes when consolidation feasibility depends on warehouse inventory
+- **Proactively initiates conversations with Warehouse Agent for complex scenarios**
+- Makes decisions based on warehouse team's constraints and availability
+
+#### Warehouse Lead Agent
+**Model**: GPT-4o (stronger reasoning for complex logistics)  
+**Role**: Inventory management, consolidation, fulfillment optimization  
+**Key Feature**: **Engages in natural language back-and-forth to solve problems together**
+
+**Autonomous Behaviors**:
+- Tracks inventory across multiple warehouse locations
+- Analyzes consolidation feasibility and costs
+- Confirms team readiness for operational timelines
+- **Responds to Shipping Agent's requests with detailed, actionable information**
+- Provides honest feedback about constraints and trade-offs
+
+**Example Collaboration**:
+```
+🚚 Shipping Agent: "Hi, I got an urgent Tokyo order (24h deadline).
+   Express shipping costs $3,500. Can we consolidate from hubs instead
+   to save costs? What's your inventory distribution?"
+
+📦 Warehouse Lead Agent: "Checking... We have 85% locally in Sydney,
+   15% in Osaka hub. Consolidation takes 4 hours, costs $400 extra.
+   My recommendation: consolidate, total cost $3,900."
+
+🚚 Shipping Agent: "Perfect! I'm booking express carrier now.
+   Can your team be ready for 2 PM pickup?"
+
+📦 Warehouse Lead Agent: "Confirmed. Team staged by 2 PM.
+   I've coordinated with Osaka. Ready for consolidation."
+```
+
+**Why This Approach is Different**:
+- ✅ **Peer Collaboration**: Neither agent "orchestrates" the other
+- ✅ **Natural Language**: Reasoning happens in plain English, visible in logs
+- ✅ **Problem-Solving**: Agents work TOGETHER to find optimal solutions
+- ✅ **Dynamic**: Not pre-programmed workflows—each scenario negotiated afresh
+- ✅ **Equal Authority**: Both agents have decision-making power
+
+See **[AgentBus.Examples.LogisticsCoordination](AgentBus.Examples.LogisticsCoordination)** for full scenario and implementation details.
+
+---
+
 ## Running the Autonomous Agents
 
 ### Option 1: With .NET Aspire (Recommended ⭐)
@@ -293,6 +351,26 @@ dotnet run --project examples/AgentBus.Examples.OperationsInventory
 dotnet run --project examples/AgentBus.Examples.FinancialAuth
 dotnet run --project examples/AgentBus.Examples.InternalComms
 ```
+
+### Option 3: Logistics Coordination (Two Equal Agents Collaborating)
+
+**Special example showing peer-to-peer agent collaboration with natural language communication**:
+
+```bash
+# Terminal 1: Start Warehouse Lead Agent (listens for coordination requests)
+dotnet run --project examples/AgentBus.Examples.LogisticsCoordination WarehouseLead
+
+# Terminal 2: Start Shipping Agent (initiates problem-solving conversation)
+dotnet run --project examples/AgentBus.Examples.LogisticsCoordination ShippingAgent
+```
+
+This example demonstrates:
+- **Peer Collaboration**: Two equal agents, neither is a "coordinator"
+- **Natural Language Communication**: Agents reason about problems in plain English
+- **Dynamic Problem-Solving**: Shipping Agent asks Warehouse Agent for help when it needs inventory insights
+- **Context-Aware Reasoning**: Each agent maintains conversation context and adjusts strategy based on responses
+
+See [AgentBus.Examples.LogisticsCoordination/README.md](AgentBus.Examples.LogisticsCoordination/README.md) for detailed scenario explanation.
 
 ### Watch the Autonomous Behavior
 
