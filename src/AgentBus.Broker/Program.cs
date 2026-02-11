@@ -3,6 +3,7 @@ using AgentBus.Broker.SharedKernel.Telemetry;
 using AgentBus.Broker.Modules.Registration;
 using AgentBus.Broker.Modules.Messaging;
 using AgentBus.Broker.Modules.Eventing;
+using AgentBus.Broker.Modules.A2A;
 using Serilog;
 using Serilog.Events;
 
@@ -65,6 +66,7 @@ builder.Services.AddSingleton(sp =>
 builder.Services.AddRegistrationModule();
 builder.Services.AddMessagingModule();
 builder.Services.AddEventingModule();
+builder.Services.AddA2AModule();
 
 var app = builder.Build();
 
@@ -96,6 +98,7 @@ Log.Information("AgentBus.Broker starting up...");
 app.MapRegistrationEndpoints();
 app.MapMessagingEndpoints();
 app.MapEventingEndpoints();
+app.MapA2AEndpoints();
 
 app.Run();
 

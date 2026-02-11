@@ -9,5 +9,9 @@ public sealed record RegisterAgentRequest(
     string[] Capabilities,
     MessageTypes MessageTypes,
     AgentIdentity Identity,
+    string A2AEndpointUrl,
+    CommunicationCapabilities Communication,
+    string[] EventsPublished,
     AgentMetadata? Metadata,
-    string? HealthCheckUrl = null);
+    string? HealthCheckUrl = null,
+    string? InboxQueueName = null);

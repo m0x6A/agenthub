@@ -32,7 +32,14 @@ public static class TestDataBuilder
                 TenantId: Faker.Random.Guid().ToString()),
             Endpoints: new AgentEndpoints(
                 InboxQueueName: $"agent-{id}-inbox",
-                HealthCheckUrl: null),
+                HealthCheckUrl: null,
+                A2AEndpointUrl: $"https://localhost:8000/a2a/{id}"),
+            Communication: new CommunicationCapabilities(
+                SupportsA2ADirect: true,
+                SupportsEventPublishing: true,
+                SupportsEventSubscription: true),
+            EventSubscriptions: Array.Empty<EventSubscription>(),
+            EventsPublished: Array.Empty<string>(),
             Metadata: null,
             Timestamps: new AgentTimestamps(
                 RegisteredAt: DateTime.UtcNow.AddHours(-1),

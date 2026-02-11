@@ -6,6 +6,7 @@
   <ItemGroup>
     <!-- Azure SDKs -->
     <PackageVersion Include="A2A" Version="0.3.3-preview" />
+    <PackageVersion Include="A2A.AspNetCore" Version="0.3.3-preview" />
     <PackageVersion Include="Azure.Identity" Version="1.13.0" />
     <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.18.1" />
     <PackageVersion Include="Microsoft.Azure.Cosmos" Version="3.43.0" />

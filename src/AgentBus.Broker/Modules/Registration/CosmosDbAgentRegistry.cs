@@ -133,4 +133,62 @@ public sealed class CosmosDbAgentRegistry : IAgentRegistry
         
         _logger.LogInformation("Agent {AgentId} deleted from registry", agentId);
     }
+
+    public async Task AddEventSubscriptionAsync(string agentId, EventSubscription subscription, CancellationToken cancellationToken = default)
+    {
+        var agent = await GetAgentByIdAsync(agentId, cancellationToken);
+        if (agent == null)
+        {
+            throw new InvalidOperationException($"Agent {agentId} not found");
+        }
+
+        var updatedSubscriptions = agent.EventSubscriptions.Append(subscription).ToArray();
+
+        var patchOperations = new[]
+        {
+            PatchOperation.Set("/eventSubscriptions", updatedSubscriptions)
+        };
+
+        await _container.PatchItemAsync<Agent>(
+            agentId,
+            new PartitionKey(agentId),
+            patchOperations,
+            cancellationToken: cancellationToken);
+
+        _logger.LogInformation("Added event subscription {SubscriptionId} for agent {AgentId}", 
+            subscription.SubscriptionId, agentId);
+    }
+
+    public async Task RemoveEventSubscriptionAsync(string agentId, string subscriptionId, CancellationToken cancellationToken = default)
+    {
+        var agent = await GetAgentByIdAsync(agentId, cancellationToken);
+        if (agent == null)
+        {
+            throw new InvalidOperationException($"Agent {agentId} not found");
+        }
+
+        var updatedSubscriptions = agent.EventSubscriptions
+            .Where(s => s.SubscriptionId != subscriptionId)
+            .ToArray();
+
+        var patchOperations = new[]
+        {
+            PatchOperation.Set("/eventSubscriptions", updatedSubscriptions)
+        };
+
+        await _container.PatchItemAsync<Agent>(
+            agentId,
+            new PartitionKey(agentId),
+            patchOperations,
+            cancellationToken: cancellationToken);
+
+        _logger.LogInformation("Removed event subscription {SubscriptionId} from agent {AgentId}", 
+            subscriptionId, agentId);
+    }
+
+    public async Task<IEnumerable<EventSubscription>> GetEventSubscriptionsAsync(string agentId, CancellationToken cancellationToken = default)
+    {
+        var agent = await GetAgentByIdAsync(agentId, cancellationToken);
+        return agent?.EventSubscriptions ?? Array.Empty<EventSubscription>();
+    }
 }

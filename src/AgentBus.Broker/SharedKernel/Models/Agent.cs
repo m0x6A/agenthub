@@ -10,6 +10,9 @@ public sealed record Agent(
     MessageTypes MessageTypes,
     AgentIdentity Identity,
     AgentEndpoints Endpoints,
+    CommunicationCapabilities Communication,
+    EventSubscription[] EventSubscriptions,
+    string[] EventsPublished,
     AgentMetadata? Metadata,
     AgentTimestamps Timestamps);
 
@@ -27,8 +30,19 @@ public sealed record AgentIdentity(
     string TenantId);
 
 public sealed record AgentEndpoints(
-    string InboxQueueName,
-    string? HealthCheckUrl);
+    string? InboxQueueName,
+    string? HealthCheckUrl,
+    string A2AEndpointUrl);
+
+public sealed record CommunicationCapabilities(
+    bool SupportsA2ADirect,
+    bool SupportsEventPublishing,
+    bool SupportsEventSubscription);
+
+public sealed record EventSubscription(
+    string EventType,
+    string SubscriptionId,
+    Dictionary<string, string>? Filters);
 
 public sealed record AgentMetadata(
     string? Owner,

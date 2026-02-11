@@ -56,7 +56,27 @@ public class RegistrationSteps : IDisposable
             id = agent.Id,
             name = agent.Name,
             version = agent.Version,
-            capabilities = agent.Capabilities
+            capabilities = agent.Capabilities,
+            messageTypes = new
+            {
+                accepts = agent.MessageTypes.Accepts,
+                emits = agent.MessageTypes.Emits
+            },
+            identity = new
+            {
+                managedIdentityId = agent.Identity.ManagedIdentityId,
+                principalId = agent.Identity.PrincipalId,
+                tenantId = agent.Identity.TenantId
+            },
+            a2aEndpointUrl = agent.Endpoints.A2AEndpointUrl,
+            communication = new
+            {
+                supportsA2ADirect = agent.Communication.SupportsA2ADirect,
+                supportsEventPublishing = agent.Communication.SupportsEventPublishing,
+                supportsEventSubscription = agent.Communication.SupportsEventSubscription
+            },
+            eventsPublished = agent.EventsPublished,
+            healthCheckUrl = agent.Endpoints.HealthCheckUrl
         };
 
         _response = await _client.PostAsJsonAsync("/api/v1/agents", request);
@@ -66,12 +86,33 @@ public class RegistrationSteps : IDisposable
     [When(@"I register an agent with invalid version ""(.*)""")]
     public async Task WhenIRegisterAnAgentWithInvalidVersion(string version)
     {
+        var testAgent = TestDataBuilder.CreateTestAgent(version: version);
+        
         var request = new
         {
             id = "test-agent",
             name = "Test Agent",
             version = version,
-            capabilities = new[] { "test" }
+            capabilities = new[] { "test" },
+            messageTypes = new
+            {
+                accepts = testAgent.MessageTypes.Accepts,
+                emits = testAgent.MessageTypes.Emits
+            },
+            identity = new
+            {
+                managedIdentityId = testAgent.Identity.ManagedIdentityId,
+                principalId = testAgent.Identity.PrincipalId,
+                tenantId = testAgent.Identity.TenantId
+            },
+            a2aEndpointUrl = testAgent.Endpoints.A2AEndpointUrl,
+            communication = new
+            {
+                supportsA2ADirect = true,
+                supportsEventPublishing = true,
+                supportsEventSubscription = true
+            },
+            eventsPublished = Array.Empty<string>()
         };
 
         _response = await _client.PostAsJsonAsync("/api/v1/agents", request);

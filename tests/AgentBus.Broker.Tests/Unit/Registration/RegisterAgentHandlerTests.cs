@@ -38,6 +38,9 @@ public class RegisterAgentHandlerTests
             Capabilities: new[] { "test-capability" },
             MessageTypes: new MessageTypes(new[] { "*.test" }, new[] { "test.*" }),
             Identity: new AgentIdentity("managedId", "principalId", "tenantId"),
+            A2AEndpointUrl: "https://test-agent.example.com/a2a",
+            Communication: new CommunicationCapabilities(true, true, true),
+            EventsPublished: Array.Empty<string>(),
             Metadata: null);
 
         _mockRegistry
@@ -45,12 +48,13 @@ public class RegisterAgentHandlerTests
             .Returns(Task.FromResult(new Agent(
                 "test", "test", "test", "1.0.0", AgentStatus.Active,
                 Array.Empty<string>(), new MessageTypes(Array.Empty<string>(), Array.Empty<string>()),
-                new AgentIdentity("id", "p", "t"), new AgentEndpoints("q", null), null,
+                new AgentIdentity("id", "p", "t"), 
+                new AgentEndpoints(null, null, "https://test.example.com/a2a"),
+                new CommunicationCapabilities(true, true, true),
+                Array.Empty<EventSubscription>(),
+                Array.Empty<string>(),
+                null,
                 new AgentTimestamps(DateTime.UtcNow, DateTime.UtcNow))));
-
-        _mockMessageBroker
-            .CreateInboxQueueAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
 
         // Act
         var result = await _handler.HandleAsync(request, CancellationToken.None);
@@ -61,8 +65,10 @@ public class RegisterAgentHandlerTests
         await _mockRegistry.Received(1).RegisterAgentAsync(
             Arg.Is<Agent>(a => a.Id == request.Id),
             Arg.Any<CancellationToken>());
-        await _mockMessageBroker.Received(1).CreateInboxQueueAsync(
-            request.Id,
+        
+        // No inbox queue should be created for A2A-enabled agents
+        await _mockMessageBroker.DidNotReceive().CreateInboxQueueAsync(
+            Arg.Any<string>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -77,6 +83,9 @@ public class RegisterAgentHandlerTests
             Capabilities: new[] { "test" },
             MessageTypes: new MessageTypes(Array.Empty<string>(), Array.Empty<string>()),
             Identity: new AgentIdentity("id", "principal", "tenant"),
+            A2AEndpointUrl: "https://test-agent-002.example.com/a2a",
+            Communication: new CommunicationCapabilities(true, true, true),
+            EventsPublished: Array.Empty<string>(),
             Metadata: null);
 
         Agent? capturedAgent = null;
@@ -103,6 +112,9 @@ public class RegisterAgentHandlerTests
             Capabilities: new[] { "test" },
             MessageTypes: new MessageTypes(Array.Empty<string>(), Array.Empty<string>()),
             Identity: new AgentIdentity("id", "principal", "tenant"),
+            A2AEndpointUrl: "https://test-agent-003.example.com/a2a",
+            Communication: new CommunicationCapabilities(true, true, true),
+            EventsPublished: Array.Empty<string>(),
             Metadata: null);
 
         _mockRegistry
@@ -125,7 +137,7 @@ public class RegisterAgentHandlerTests
     [Fact]
     public async Task HandleAsync_ShouldCreateInboxQueue()
     {
-        // Arrange
+        // Arrange - Agent without A2A support should get inbox queue
         var request = new RegisterAgentRequest(
             Id: "test-agent-004",
             Name: "Test Agent 4",
@@ -133,6 +145,9 @@ public class RegisterAgentHandlerTests
             Capabilities: new[] { "test" },
             MessageTypes: new MessageTypes(Array.Empty<string>(), Array.Empty<string>()),
             Identity: new AgentIdentity("id", "principal", "tenant"),
+            A2AEndpointUrl: "https://test-agent-004.example.com/a2a",
+            Communication: new CommunicationCapabilities(false, true, true), // Does NOT support A2ADirect
+            EventsPublished: Array.Empty<string>(),
             Metadata: null);
 
         _mockRegistry

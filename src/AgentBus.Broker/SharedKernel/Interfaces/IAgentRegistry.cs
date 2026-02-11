@@ -11,4 +11,7 @@ public interface IAgentRegistry
     Task UpdateHeartbeatAsync(string agentId, DateTime heartbeatTime, CancellationToken cancellationToken = default);
     Task UpdateStatusAsync(string agentId, AgentStatus status, CancellationToken cancellationToken = default);
     Task DeleteAgentAsync(string agentId, CancellationToken cancellationToken = default);
+    Task AddEventSubscriptionAsync(string agentId, EventSubscription subscription, CancellationToken cancellationToken = default);
+    Task RemoveEventSubscriptionAsync(string agentId, string subscriptionId, CancellationToken cancellationToken = default);
+    Task<IEnumerable<EventSubscription>> GetEventSubscriptionsAsync(string agentId, CancellationToken cancellationToken = default);
 }

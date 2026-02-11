@@ -58,6 +58,17 @@ public sealed partial class RegisterAgentValidator : AbstractValidator<RegisterA
         RuleFor(x => x.Identity.ManagedIdentityId)
             .NotEmpty().WithMessage("Managed Identity ID is required");
 
+        RuleFor(x => x.A2AEndpointUrl)
+            .NotEmpty().WithMessage("A2A endpoint URL is required")
+            .Must(BeValidHttpsUrl!).WithMessage("A2A endpoint URL must be a valid HTTPS URL");
+
+        RuleFor(x => x.Communication)
+            .NotNull().WithMessage("Communication capabilities are required");
+
+        RuleFor(x => x.EventsPublished)
+            .NotNull().WithMessage("Events published array is required")
+            .Must(x => x.Length <= 100).WithMessage("Maximum 100 published events allowed");
+
         When(x => x.HealthCheckUrl != null, () =>
         {
             RuleFor(x => x.HealthCheckUrl)

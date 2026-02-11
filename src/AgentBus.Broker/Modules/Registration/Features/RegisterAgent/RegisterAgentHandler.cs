@@ -22,7 +22,14 @@ public sealed class RegisterAgentHandler
     public async Task<Agent> HandleAsync(RegisterAgentRequest request, CancellationToken cancellationToken)
     {
         var now = _timeProvider.GetUtcNow().UtcDateTime;
-        var inboxQueueName = GenerateInboxQueueName(request.Id);
+        
+        // Only create inbox queue if agent supports legacy Service Bus messaging
+        string? inboxQueueName = null;
+        if (request.InboxQueueName != null || !request.Communication.SupportsA2ADirect)
+        {
+            inboxQueueName = request.InboxQueueName ?? GenerateInboxQueueName(request.Id);
+            await _messageBroker.CreateInboxQueueAsync(request.Id, cancellationToken);
+        }
 
         var agent = new Agent(
             Id: request.Id,
@@ -35,17 +42,18 @@ public sealed class RegisterAgentHandler
             Identity: request.Identity,
             Endpoints: new AgentEndpoints(
                 InboxQueueName: inboxQueueName,
-                HealthCheckUrl: request.HealthCheckUrl
+                HealthCheckUrl: request.HealthCheckUrl,
+                A2AEndpointUrl: request.A2AEndpointUrl
             ),
+            Communication: request.Communication,
+            EventSubscriptions: [],
+            EventsPublished: request.EventsPublished,
             Metadata: request.Metadata,
             Timestamps: new AgentTimestamps(
                 RegisteredAt: now,
                 LastHeartbeat: now
             )
         );
-
-        // Create inbox queue first (using agent ID per interface)
-        await _messageBroker.CreateInboxQueueAsync(request.Id, cancellationToken);
 
         // Register agent in Cosmos DB
         await _agentRegistry.RegisterAgentAsync(agent, cancellationToken);

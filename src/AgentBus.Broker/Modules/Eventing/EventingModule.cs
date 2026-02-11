@@ -26,7 +26,7 @@ public static class EventingModule
             .RequireAuthorization();
 
         app.MapPost("/api/v1/events/subscribe", SubscribeToEventEndpoint.Handle)
-            .WithName("SubscribeToEvent")
+            .WithName("SubscribeAsAgent")
             .WithTags("Eventing")
             .RequireAuthorization();
 
