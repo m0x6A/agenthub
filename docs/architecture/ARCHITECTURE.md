@@ -280,7 +280,7 @@ GET    /api/v1/health/ready                  # Readiness probe
 ```
 
 **Technology Stack (MVP):**
-- Runtime: .NET +10 / C# +14 / ASP.NET Core Minimal APIs
+- Runtime: .NET +10 / C# 14 / ASP.NET Core Minimal APIs
 - Architecture: Modular Monolith with Vertical Slice Architecture (see Section 4.7)
 - Serialization: System.Text.Json (source-generated)
 - Service Bus SDK: Azure.Messaging.ServiceBus
