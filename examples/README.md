@@ -234,7 +234,34 @@ Actions Chosen by LLM:
 
 ## Running the Autonomous Agents
 
-### Prerequisites
+### Option 1: With .NET Aspire (Recommended ⭐)
+
+**One command starts everything with full observability**:
+
+```bash
+# From repository root
+dotnet run --project src/AgentHub.AppHost
+
+# This starts:
+# - AgentBus Broker
+# - All 4 autonomous agents
+# - Azure Service Bus emulator
+# - Aspire Dashboard (https://localhost:17238)
+```
+
+**Benefits**:
+- ✅ One command launches all 5 projects
+- ✅ Unified dashboard with logs, traces, metrics
+- ✅ Distributed tracing shows event flow across agents
+- ✅ Service discovery (no hardcoded URLs)
+- ✅ Local Service Bus emulator
+- ✅ Azure deployment with `azd up`
+
+See **[ASPIRE.md](../ASPIRE.md)** for full Aspire documentation.
+
+### Option 2: Manual Execution
+
+**Prerequisites**
 
 ```bash
 # Required: AgentBus Broker

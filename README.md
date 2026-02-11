@@ -13,6 +13,39 @@ A production-ready message broker platform that enables autonomous agents to reg
 - **Zero-Secrets Security**: Azure Managed Identity authentication with Entra ID JWT validation
 - **Full Observability**: OpenTelemetry traces, structured logging, custom metrics, health checks
 - **Infrastructure as Code**: Bicep templates for complete Azure deployment automation
+- **🚀 .NET Aspire Orchestration**: Run all services with one command, unified dashboard, distributed tracing
+- **🤖 Autonomous Agents**: LLM-powered agents with real decision-making, not microservices
+
+## 🚀 Quick Start: Run with .NET Aspire
+
+**.NET Aspire provides the easiest way to run the entire system locally with full observability:**
+
+```bash
+# Install Aspire workload (one-time)
+dotnet workload install aspire
+
+# Run broker + 4 example autonomous agents + dashboard
+dotnet run --project src/AgentHub.AppHost
+
+# Opens Aspire Dashboard at https://localhost:17238 with:
+# - All service logs unified in one view
+# - Distributed tracing showing event flow across agents
+# - Real-time metrics and health checks
+# - Azure Service Bus emulator (no cloud costs)
+```
+
+**See [ASPIRE.md](ASPIRE.md)** for complete Aspire documentation and benefits.
+
+**See [examples/README.md](examples/README.md)** for autonomous agent architecture explanation.
+
+## Features
+
+- **Agent Registration & Discovery**: Register agents with capabilities, discover agents by capability patterns
+- **Direct Messaging**: Point-to-point message delivery with acknowledgment and dead-letter queues
+- **Event Publishing & Subscription**: Pub/sub eventing with topic-based routing and SQL filters
+- **Zero-Secrets Security**: Azure Managed Identity authentication with Entra ID JWT validation
+- **Full Observability**: OpenTelemetry traces, structured logging, custom metrics, health checks
+- **Infrastructure as Code**: Bicep templates for complete Azure deployment automation
 
 ## Architecture
 
