@@ -60,6 +60,13 @@ var commsAgent = builder.AddProject<Projects.AgentBus_Examples_InternalComms>("i
     .WithEnvironment("AGENTBUS_URL", broker.GetEndpoint("http"));
 Console.WriteLine("✅ Added Internal Communications Agent");
 
+// Web Dashboard - Interactive showcase of agent communication
+Console.WriteLine("📦 Adding Logistics Coordination UI...");
+var logisticsUI = builder.AddProject<Projects.AgentBus_Examples_LogisticsUI>("logistics-ui")
+    .WithReference(broker)
+    .WithHttpEndpoint(port: 5001, name: "http");
+Console.WriteLine("✅ Added Logistics Coordination UI");
+
 Console.WriteLine("🔨 Building Aspire application...");
 var app = builder.Build();
 Console.WriteLine("✨ Aspire AppHost started successfully!");

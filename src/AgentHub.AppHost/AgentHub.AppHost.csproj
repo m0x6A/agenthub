@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AgentBus.Broker\AgentBus.Broker.csproj" />
+    <ProjectReference Include="..\AgentBus.Examples.LogisticsUI\AgentBus.Examples.LogisticsUI.csproj" />
     <ProjectReference Include="..\..\examples\AgentBus.Examples.CustomerExperience\AgentBus.Examples.CustomerExperience.csproj" />
     <ProjectReference Include="..\..\examples\AgentBus.Examples.OperationsInventory\AgentBus.Examples.OperationsInventory.csproj" />
     <ProjectReference Include="..\..\examples\AgentBus.Examples.FinancialAuth\AgentBus.Examples.FinancialAuth.csproj" />

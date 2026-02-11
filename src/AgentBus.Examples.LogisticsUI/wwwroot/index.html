@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Communication Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        header h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .scenarios, .messages {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .scenarios {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .scenarios-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            font-weight: 600;
+        }
+
+        .scenario-list {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .scenario-btn {
+            padding: 12px 16px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-align: left;
+        }
+
+        .scenario-btn:hover {
+            background: #667eea;
+            color: white;
+            transform: translateX(4px);
+        }
+
+        .scenario-btn.loading {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .scenario-title {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .scenario-desc {
+            display: block;
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .messages {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .messages-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .messages-header button {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid white;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .messages-header button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .messages-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            height: 600px;
+            background: #f9f9f9;
+        }
+
+        .message {
+            margin-bottom: 16px;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            line-height: 1.5;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.sent {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+        }
+
+        .message.received {
+            background: #f3e5f5;
+            border-left: 4px solid #764ba2;
+        }
+
+        .message.analysis {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+        }
+
+        .message.decision {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+        }
+
+        .message-header {
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #333;
+        }
+
+        .message-from {
+            color: #2196F3;
+        }
+
+        .message-to {
+            color: #764ba2;
+        }
+
+        .message-text {
+            color: #666;
+        }
+
+        .message-time {
+            font-size: 11px;
+            color: #999;
+            margin-top: 6px;
+        }
+
+        .empty-state {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #999;
+            text-align: center;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.active {
+            background: #4caf50;
+        }
+
+        .status-indicator.idle {
+            background: #999;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .messages-body {
+                height: 400px;
+            }
+        }
+
+        footer {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Agent Communication Dashboard</h1>
+            <p>Demonstrating autonomous agent collaboration for logistics coordination</p>
+        </header>
+
+        <div class="main-content">
+            <div class="scenarios">
+                <div class="scenarios-header">📋 Scenarios</div>
+                <div class="scenario-list">
+                    <button class="scenario-btn" onclick="triggerScenario('/api/scenarios/urgent-tokyo', this)">
+                        <span class="scenario-title">🚚 Urgent Tokyo Delivery</span>
+                        <span class="scenario-desc">24-hour deadline, VIP customer, cost optimization</span>
+                    </button>
+                    <button class="scenario-btn" onclick="triggerScenario('/api/scenarios/inventory-issue', this)">
+                        <span class="scenario-title">📦 Inventory Shortage</span>
+                        <span class="scenario-desc">Agents solve inventory constraint problem</span>
+                    </button>
+                    <button class="scenario-btn" onclick="triggerScenario('/api/scenarios/cost-optimization', this)">
+                        <span class="scenario-title">💰 Cost Optimization</span>
+                        <span class="scenario-desc">Consolidation strategy for bulk orders</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="messages">
+                <div class="messages-header">
+                    <span>
+                        <span class="status-indicator active"></span>
+                        Live Agent Communication
+                    </span>
+                    <button onclick="clearMessages()">Clear</button>
+                </div>
+                <div class="messages-body" id="messagesBody">
+                    <div class="empty-state">
+                        👈 Select a scenario to start
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            Connected to AgentBus Broker • Real-time autonomous agent collaboration demo
+        </footer>
+    </div>
+
+    <script>
+        async function triggerScenario(endpoint, button) {
+            button.classList.add("loading");
+            button.disabled = true;
+
+            try {
+                document.getElementById("messagesBody").innerHTML = '';
+                
+                const response = await fetch(endpoint, { method: 'POST' });
+                const data = await response.json();
+
+                // Display the messages from the response
+                if (data.messages) {
+                    displayMessages(data.messages);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Failed to run scenario: ' + error.message);
+            } finally {
+                button.classList.remove("loading");
+                button.disabled = false;
+            }
+        }
+
+        function displayMessages(messages) {
+            const container = document.getElementById("messagesBody");
+            container.innerHTML = '';
+
+            if (!messages || messages.length === 0) {
+                container.innerHTML = '<div class="empty-state">No messages yet</div>';
+                return;
+            }
+
+            messages.forEach(msg => {
+                const div = document.createElement('div');
+                div.className = `message ${msg.type.toLowerCase()}`;
+                
+                const time = new Date(msg.timestamp).toLocaleTimeString();
+                div.innerHTML = `
+                    <div class="message-header">
+                        <span class="message-from">${msg.from}</span> → <span class="message-to">${msg.to}</span>
+                        <span style="float: right; font-weight: normal; color: #999;">${msg.type}</span>
+                    </div>
+                    <div class="message-text">${escapeHtml(msg.message)}</div>
+                    <div class="message-time">${time}</div>
+                `;
+                
+                container.appendChild(div);
+            });
+
+            // Scroll to bottom
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function clearMessages() {
+            document.getElementById("messagesBody").innerHTML = '';
+            document.getElementById("messagesBody").innerHTML = '<div class="empty-state">👈 Select a scenario to start</div>';
+        }
+
+        function showError(message) {
+            const container = document.getElementById("messagesBody");
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.style.borderLeftColor = '#f44336';
+            div.style.background = '#ffebee';
+            div.innerHTML = `
+                <div class="message-header" style="color: #f44336;">❌ Error</div>
+                <div class="message-text">${escapeHtml(message)}</div>
+            `;
+            container.appendChild(div);
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // Load initial messages on page load
+        window.addEventListener('load', () => {
+            fetch('/api/messages')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.messages.length > 0) {
+                        displayMessages(data.messages);
+                    }
+                })
+                .catch(e => console.error('Failed to load messages:', e));
+        });
+    </script>
+</body>
+</html>
