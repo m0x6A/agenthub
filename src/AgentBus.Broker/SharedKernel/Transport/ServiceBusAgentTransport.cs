@@ -31,7 +31,7 @@ public sealed class ServiceBusAgentTransport : IAgentTransport
         _agentRegistry = agentRegistry;
         _logger = logger;
         _replyQueueName = configuration["ServiceBus:ReplyQueueName"] ?? "agent-replies";
-        
+
         InitializeReplyProcessorAsync().GetAwaiter().GetResult();
     }
 
@@ -101,14 +101,16 @@ public sealed class ServiceBusAgentTransport : IAgentTransport
         }
     }
 
+#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
     public async IAsyncEnumerable<AgentMessage> StreamMessagesAsync(
+#pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
         string targetAgentId,
         MessageSendParams message,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         throw new NotSupportedException(
             "Streaming is not supported over Service Bus transport. Use HTTP transport for streaming scenarios.");
-#pragma warning disable CS0162 // Unreachable code detected  
+#pragma warning disable CS0162 // Unreachable code detected
         yield break;
 #pragma warning restore CS0162 // Unreachable code detected
     }
@@ -139,7 +141,7 @@ public sealed class ServiceBusAgentTransport : IAgentTransport
     private Task ProcessReplyMessageAsync(ProcessMessageEventArgs args)
     {
         var correlationId = args.Message.CorrelationId;
-        
+
         if (string.IsNullOrEmpty(correlationId))
         {
             _logger.LogWarning("Received reply message without correlation ID");
@@ -152,7 +154,7 @@ public sealed class ServiceBusAgentTransport : IAgentTransport
             {
                 var messageBody = args.Message.Body.ToString();
                 var response = JsonSerializer.Deserialize<AgentMessage>(messageBody);
-                
+
                 if (response != null)
                 {
                     tcs.TrySetResult(response);

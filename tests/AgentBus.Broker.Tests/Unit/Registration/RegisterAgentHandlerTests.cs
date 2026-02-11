@@ -14,16 +14,19 @@ public class RegisterAgentHandlerTests
     private readonly IMessageBroker _mockMessageBroker;
     private readonly TimeProvider _timeProvider;
     private readonly RegisterAgentHandler _handler;
+    private IEventBroker _eventBroker;
 
     public RegisterAgentHandlerTests()
     {
         _mockRegistry = Substitute.For<IAgentRegistry>();
         _mockMessageBroker = Substitute.For<IMessageBroker>();
+        _eventBroker = Substitute.For<IEventBroker>();
         _timeProvider = TimeProvider.System;
-        
+
         _handler = new RegisterAgentHandler(
             _mockRegistry,
             _mockMessageBroker,
+            _eventBroker,
             _timeProvider);
     }
 
@@ -49,7 +52,7 @@ public class RegisterAgentHandlerTests
             .Returns(Task.FromResult(new Agent(
                 "test", "test", "test", "1.0.0", AgentStatus.Active,
                 Array.Empty<string>(), new MessageTypes(Array.Empty<string>(), Array.Empty<string>()),
-                new AgentIdentity("id", "p", "t"), 
+                new AgentIdentity("id", "p", "t"),
                 new AgentEndpoints(null, null, "https://test.example.com/a2a"),
                 new CommunicationCapabilities(true, true, true),
                 Array.Empty<EventSubscription>(),
@@ -67,7 +70,7 @@ public class RegisterAgentHandlerTests
         await _mockRegistry.Received(1).RegisterAgentAsync(
             Arg.Is<Agent>(a => a.Id == request.Id),
             Arg.Any<CancellationToken>());
-        
+
         // No inbox queue should be created for A2A-enabled agents
         await _mockMessageBroker.DidNotReceive().CreateInboxQueueAsync(
             Arg.Any<string>(),
