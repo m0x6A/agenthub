@@ -17,7 +17,9 @@ public class ServiceBusAgentBusClient : IAgentBusClient
     private readonly string _agentId;
     private ServiceBusClient? _serviceBusClient;
     private ServiceBusReceiver? _receiver;
+    private ServiceBusReceiver? _directMessageReceiver;
     private readonly JsonSerializerOptions _jsonOptions;
+    private bool? _selfSupportsA2ADirect;
 
     public ServiceBusAgentBusClient(string agentBusHttpUrl, string serviceBusConnectionString, string agentId)
     {
@@ -38,6 +40,7 @@ public class ServiceBusAgentBusClient : IAgentBusClient
 
     public async Task RegisterAgentAsync(AgentRegistration registration)
     {
+        _selfSupportsA2ADirect = registration.Communication.SupportsA2ADirect;
         // Registration still goes through HTTP API
         const int maxRetries = 10;
         var retryDelay = TimeSpan.FromSeconds(2);
@@ -192,7 +195,7 @@ public class ServiceBusAgentBusClient : IAgentBusClient
     {
         try
         {
-            var response = await _httpClient.GetAsync($"/api/agents/{agentId}");
+            var response = await _httpClient.GetAsync($"/api/v1/agents/{agentId}");
             
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 return null;
@@ -211,24 +214,33 @@ public class ServiceBusAgentBusClient : IAgentBusClient
     {
         try
         {
-            var envelope = new
+            var recipientAgent = await GetAgentAsync(recipientAgentId);
+            if (recipientAgent == null)
+                throw new InvalidOperationException($"Agent '{recipientAgentId}' not found");
+
+            var directMessage = new DirectMessage(
+                MessageId: Guid.NewGuid().ToString(),
+                From: _agentId,
+                To: recipientAgentId,
+                Message: message,
+                Timestamp: DateTime.UtcNow);
+
+            if (ShouldUseServiceBusDirect(recipientAgent))
             {
-                messageId = Guid.NewGuid().ToString(),
-                from = _agentId,
-                to = recipientAgentId,
-                message,
-                timestamp = DateTime.UtcNow
-            };
+                await SendDirectMessageOverServiceBusAsync(directMessage);
+                Log.Information("[ServiceBus] Direct message sent via Service Bus from {From} to {To}", _agentId, recipientAgentId);
+                return;
+            }
 
             var content = new StringContent(
-                JsonSerializer.Serialize(envelope, _jsonOptions),
+                JsonSerializer.Serialize(directMessage, _jsonOptions),
                 Encoding.UTF8,
                 "application/json");
 
-            var response = await _httpClient.PostAsync("/api/messages/send", content);
+            var response = await _httpClient.PostAsync("/api/v1/messages/send", content);
             response.EnsureSuccessStatusCode();
             
-            Log.Information("[ServiceBus] Direct message sent from {From} to {To}", _agentId, recipientAgentId);
+            Log.Information("[ServiceBus] Direct message sent via HTTP from {From} to {To}", _agentId, recipientAgentId);
         }
         catch (Exception ex)
         {
@@ -241,8 +253,19 @@ public class ServiceBusAgentBusClient : IAgentBusClient
     {
         try
         {
+            if (await ShouldUseServiceBusDirectForSelfAsync(cancellationToken))
+            {
+                var directMessage = await ReceiveDirectMessageOverServiceBusAsync(maxWaitSeconds, cancellationToken);
+                if (directMessage != null)
+                {
+                    Log.Information("[ServiceBus] Direct message received via Service Bus from {From}", directMessage.From);
+                }
+
+                return directMessage;
+            }
+
             var response = await _httpClient.GetAsync(
-                $"/api/messages/receive?agentId={_agentId}&maxWaitSeconds={maxWaitSeconds}",
+                $"/api/v1/messages/receive?agentId={_agentId}&maxWaitSeconds={maxWaitSeconds}",
                 cancellationToken);
 
             if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
@@ -265,7 +288,75 @@ public class ServiceBusAgentBusClient : IAgentBusClient
     public void Dispose()
     {
         _receiver?.DisposeAsync().AsTask().Wait();
+        _directMessageReceiver?.DisposeAsync().AsTask().Wait();
         _serviceBusClient?.DisposeAsync().AsTask().Wait();
         _httpClient.Dispose();
+    }
+
+    private ServiceBusClient GetOrCreateServiceBusClient()
+    {
+        _serviceBusClient ??= new ServiceBusClient(_serviceBusConnectionString);
+        return _serviceBusClient;
+    }
+
+    private static string GetInboxQueueName(string agentId) => $"agent-{agentId}-inbox";
+
+    private static bool ShouldUseServiceBusDirect(AgentRegistration agent)
+    {
+        // Legacy Service Bus inbox queues are provisioned for agents that do NOT support A2A direct.
+        return !agent.Communication.SupportsA2ADirect;
+    }
+
+    private async Task<bool> ShouldUseServiceBusDirectForSelfAsync(CancellationToken cancellationToken)
+    {
+        if (_selfSupportsA2ADirect.HasValue)
+        {
+            return !_selfSupportsA2ADirect.Value;
+        }
+
+        var selfRegistration = await GetAgentAsync(_agentId);
+        _selfSupportsA2ADirect = selfRegistration?.Communication.SupportsA2ADirect ?? true;
+        return !_selfSupportsA2ADirect.Value;
+    }
+
+    private async Task SendDirectMessageOverServiceBusAsync(DirectMessage directMessage)
+    {
+        var client = GetOrCreateServiceBusClient();
+        var recipientQueueName = GetInboxQueueName(directMessage.To);
+
+        var sender = client.CreateSender(recipientQueueName);
+        await using var _ = sender.ConfigureAwait(false);
+
+        var messageBody = JsonSerializer.Serialize(directMessage, _jsonOptions);
+        var serviceBusMessage = new ServiceBusMessage(messageBody)
+        {
+            MessageId = directMessage.MessageId,
+            ContentType = "application/json",
+            Subject = "direct-message",
+            TimeToLive = TimeSpan.FromMinutes(10)
+        };
+
+        await sender.SendMessageAsync(serviceBusMessage);
+    }
+
+    private async Task<DirectMessage?> ReceiveDirectMessageOverServiceBusAsync(int maxWaitSeconds, CancellationToken cancellationToken)
+    {
+        var client = GetOrCreateServiceBusClient();
+        _directMessageReceiver ??= client.CreateReceiver(GetInboxQueueName(_agentId));
+
+        var message = await _directMessageReceiver.ReceiveMessageAsync(
+            TimeSpan.FromSeconds(maxWaitSeconds),
+            cancellationToken);
+
+        if (message == null)
+        {
+            return null;
+        }
+
+        var body = message.Body.ToString();
+        var directMessage = JsonSerializer.Deserialize<DirectMessage>(body, _jsonOptions);
+
+        await _directMessageReceiver.CompleteMessageAsync(message, cancellationToken);
+        return directMessage;
     }
 }

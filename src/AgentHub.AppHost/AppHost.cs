@@ -14,10 +14,10 @@ var cosmosDb = builder.AddAzureCosmosDB("cosmosdb")
 Console.WriteLine("✅ Added Cosmos DB emulator");
 
 // Azure Service Bus for agent communication
+// Uses connection string from user secrets or environment for real Service Bus
 Console.WriteLine("📦 Adding Service Bus...");
-var serviceBus = builder.AddAzureServiceBus("servicebus")
-    .RunAsEmulator(); // Use local emulator for development
-Console.WriteLine("✅ Added Service Bus emulator");
+var serviceBus = builder.AddConnectionString("servicebus");
+Console.WriteLine("✅ Added Service Bus connection string");
 
 // AgentBus Broker - Core message broker for all agents
 Console.WriteLine("📦 Adding AgentBus.Broker project...");
@@ -45,6 +45,7 @@ var operationsAgent = builder.AddProject<Projects.AgentBus_Examples_OperationsIn
     .WithReference(serviceBus)
     .WithReference(openai)
     .WaitFor(broker)
+    .WithEnvironment("SERVICEBUS_CONNECTION_STRING", serviceBus)
     .WithEnvironment("AGENTBUS_URL", broker.GetEndpoint("http"));
 Console.WriteLine("✅ Added Operations & Inventory Agent");
 
@@ -62,6 +63,7 @@ var commsAgent = builder.AddProject<Projects.AgentBus_Examples_InternalComms>("i
     .WithReference(serviceBus)
     .WithReference(openai)
     .WaitFor(broker)
+    .WithEnvironment("SERVICEBUS_CONNECTION_STRING", serviceBus)
     .WithEnvironment("AGENTBUS_URL", broker.GetEndpoint("http"));
 Console.WriteLine("✅ Added Internal Communications Agent");
 
